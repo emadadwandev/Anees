@@ -1,0 +1,99 @@
+http:
+  routers:
+    # ─── Backend API + WebSockets ─────────────────────────────────────────────
+    backend:
+      rule: "Host(`api.localhost`)"
+      entryPoints: [web]
+      service: backend
+      middlewares: [ws-headers]
+
+    # ─── Web / Admin Dashboard ────────────────────────────────────────────────
+    web:
+      rule: "Host(`web.localhost`)"
+      entryPoints: [web]
+      service: web
+
+    # ─── DSP Service ──────────────────────────────────────────────────────────
+    dsp:
+      rule: "Host(`dsp.localhost`)"
+      entryPoints: [web]
+      service: dsp
+
+    # ─── Observability ────────────────────────────────────────────────────────
+    grafana:
+      rule: "Host(`grafana.localhost`)"
+      entryPoints: [web]
+      service: grafana
+
+    prometheus:
+      rule: "Host(`prometheus.localhost`)"
+      entryPoints: [web]
+      service: prometheus
+
+    jaeger:
+      rule: "Host(`jaeger.localhost`)"
+      entryPoints: [web]
+      service: jaeger
+
+    # ─── Infrastructure ───────────────────────────────────────────────────────
+    livekit:
+      rule: "Host(`livekit.localhost`)"
+      entryPoints: [web]
+      service: livekit
+
+    hivemq:
+      rule: "Host(`hivemq.localhost`)"
+      entryPoints: [web]
+      service: hivemq
+
+    traefik-dashboard:
+      rule: "Host(`traefik.localhost`)"
+      entryPoints: [web]
+      service: api@internal
+
+  services:
+    backend:
+      loadBalancer:
+        servers:
+          - url: "http://backend:3000"
+
+    web:
+      loadBalancer:
+        servers:
+          - url: "http://web:3002"
+
+    dsp:
+      loadBalancer:
+        servers:
+          - url: "http://dsp-service:8001"
+
+    grafana:
+      loadBalancer:
+        servers:
+          - url: "http://grafana:3000"
+
+    prometheus:
+      loadBalancer:
+        servers:
+          - url: "http://prometheus:9090"
+
+    jaeger:
+      loadBalancer:
+        servers:
+          - url: "http://jaeger:16686"
+
+    livekit:
+      loadBalancer:
+        servers:
+          - url: "http://livekit:7880"
+
+    hivemq:
+      loadBalancer:
+        servers:
+          - url: "http://hivemq:8080"
+
+  middlewares:
+    ws-headers:
+      headers:
+        customRequestHeaders:
+          Connection: "keep-alive, Upgrade"

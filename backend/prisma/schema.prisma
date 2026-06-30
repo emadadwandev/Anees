@@ -1,0 +1,205 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  care_receiver
+  caregiver
+  admin
+}
+
+enum AlertType {
+  fall
+  vital_anomaly
+}
+
+enum AlertStatus {
+  pending_cancellation
+  cancelled_by_user
+  dispatched
+  acknowledged
+  resolved
+  false_alarm
+}
+
+enum DeviceStatus {
+  online
+  offline
+  maintenance
+}
+
+enum OcclusionStatus {
+  none
+  partial
+  full
+}
+
+enum Platform {
+  ios
+  android
+}
+
+enum RelationshipType {
+  primary
+  secondary
+}
+
+enum DeviceType {
+  fall_sensor
+  sleep_sensor
+}
+
+model User {
+  id           String  @id @default(uuid())
+  email        String  @unique
+  passwordHash String  @map("password_hash")
+  pinHash      String? @map("pin_hash")
+  accountCode  String? @unique @map("account_code")
+  role         Role
+  firstName    String  @map("first_name")
+  lastName     String  @map("last_name")
+  phone        String?
+  language     String  @default("en")
+  avatarUrl    String? @map("avatar_url")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  devices          Device[]
+  caregiverLinks   CaregiverLink[]  @relation("CaregiverLinks")
+  patientLinks     CaregiverLink[]  @relation("PatientLinks")
+  alertEvents      AlertEvent[]
+  pushTokens       UserPushToken[]
+  threshold        PatientThreshold?
+  auditLogs        AuditLog[]
+  intercomSessions IntercomSession[]
+
+  @@map("users")
+}
+
+model Device {
+  id              String          @id @default(uuid())
+  userId          String          @map("user_id")
+  serial          String          @unique
+  firmwareVersion String          @map("firmware_version")
+  roomLabel       String          @map("room_label")
+  status          DeviceStatus    @default(online)
+  lastHeartbeat   DateTime?       @map("last_heartbeat")
+  signalQuality   Float?          @map("signal_quality")
+  occlusionStatus OcclusionStatus @default(none) @map("occlusion_status")
+  deviceType      DeviceType      @default(fall_sensor) @map("device_type")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user         User          @relation(fields: [userId], references: [id])
+  alertEvents  AlertEvent[]
+  systemEvents SystemEvent[]
+
+  @@map("devices")
+}
+
+model CaregiverLink {
+  id               String           @id @default(uuid())
+  caregiverId      String           @map("caregiver_id")
+  patientId        String           @map("patient_id")
+  relationshipType RelationshipType @default(secondary) @map("relationship_type")
+  isPrimary        Boolean          @default(false) @map("is_primary")
+  createdAt        DateTime         @default(now()) @map("created_at")
+
+  caregiver User @relation("CaregiverLinks", fields: [caregiverId], references: [id])
+  patient   User @relation("PatientLinks", fields: [patientId], references: [id])
+
+  @@unique([caregiverId, patientId])
+  @@map("caregiver_links")
+}
+
+model AlertEvent {
+  id              String      @id @default(uuid())
+  deviceId        String      @map("device_id")
+  patientId       String      @map("patient_id")
+  type            AlertType
+  status          AlertStatus @default(pending_cancellation)
+  triggeredAt     DateTime    @default(now()) @map("triggered_at")
+  resolvedAt      DateTime?   @map("resolved_at")
+  cancelledByUser Boolean     @default(false) @map("cancelled_by_user")
+  notes           String?
+
+  device          Device           @relation(fields: [deviceId], references: [id])
+  patient         User             @relation(fields: [patientId], references: [id])
+  intercomSession IntercomSession?
+
+  @@map("alert_events")
+}
+
+model IntercomSession {
+  id            String    @id @default(uuid())
+  alertEventId  String?   @unique @map("alert_event_id")
+  livekitRoomId String    @map("livekit_room_id")
+  startedAt     DateTime  @default(now()) @map("started_at")
+  endedAt       DateTime? @map("ended_at")
+  initiatedBy   String    @map("initiated_by")
+
+  alertEvent AlertEvent? @relation(fields: [alertEventId], references: [id])
+  initiator  User        @relation(fields: [initiatedBy], references: [id])
+
+  @@map("intercom_sessions")
+}
+
+model UserPushToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  platform  Platform
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("user_push_tokens")
+}
+
+model PatientThreshold {
+  id        String   @id @default(uuid())
+  patientId String   @unique @map("patient_id")
+  hrMin     Int      @default(45) @map("hr_min")
+  hrMax     Int      @default(110) @map("hr_max")
+  rrMin     Int      @default(8) @map("rr_min")
+  rrMax     Int      @default(25) @map("rr_max")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  patient User @relation(fields: [patientId], references: [id])
+
+  @@map("patient_thresholds")
+}
+
+model SystemEvent {
+  id        String   @id @default(uuid())
+  deviceId  String   @map("device_id")
+  type      String
+  payload   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  device Device @relation(fields: [deviceId], references: [id])
+
+  @@map("system_events")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  actorId      String   @map("actor_id")
+  action       String
+  resourceType String   @map("resource_type")
+  resourceId   String   @map("resource_id")
+  ipAddress    String?  @map("ip_address")
+  timestamp    DateTime @default(now())
+
+  actor User @relation(fields: [actorId], references: [id])
+
+  @@map("audit_log")
+}

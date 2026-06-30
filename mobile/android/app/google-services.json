@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1032633708609",
+    "project_id": "aneesclientapp",
+    "storage_bucket": "aneesclientapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1032633708609:android:90b9fd16c04af8aee416c0",
+        "android_client_info": {
+          "package_name": "com.ddelmar.anees"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB675bzkQN0_dgcQnRCsmkx_5Crwdc-zg8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

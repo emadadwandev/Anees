@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anees: Clinical Command Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── Reset & base ─────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  /* Brand */
+  --blue:      #1A73E8;
+  --blue-dim:  rgba(26,115,232,0.15);
+  --blue-glow: rgba(26,115,232,0.25);
+  --green:     #3FCF5C;
+  --green-dim: rgba(63,207,92,0.14);
+  --amber:     #FF9800;
+  --amber-dim: rgba(255,152,0,0.14);
+  --red:       #FF4444;
+  --red-dim:   rgba(255,68,68,0.14);
+  --red-glow:  rgba(255,68,68,0.22);
+  --slate:     #6B7FA3;
+  --slate-dim: rgba(107,127,163,0.14);
+  /* Surfaces */
+  --bg:        #080d1a;
+  --sidebar:   #050a15;
+  --card:      rgba(255,255,255,0.036);
+  --card-hover:rgba(255,255,255,0.06);
+  --border:    rgba(255,255,255,0.07);
+  --border-hi: rgba(255,255,255,0.14);
+  /* Text */
+  --t1: #eef2ff;
+  --t2: rgba(200,210,240,0.65);
+  --t3: rgba(200,210,240,0.38);
+  /* Spacing rhythm: 4-8-12-16-20-24-32-48 */
+}
+html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--t1); font-family: 'Inter', sans-serif; font-size: 13px; -webkit-font-smoothing: antialiased; }
+
+/* ── Scrollbar ────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+/* ── Layout shell ─────────────────────────────────────────────── */
+.shell { display: flex; height: 100vh; overflow: hidden; }
+
+/* ── Sidebar ──────────────────────────────────────────────────── */
+.sidebar {
+  width: 216px; min-width: 216px;
+  background: var(--sidebar);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  padding: 0 12px;
+  position: relative; z-index: 10;
+}
+.sidebar::after {
+  content: '';
+  position: absolute; top: 0; right: 0; bottom: 0; width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(26,115,232,0.3) 40%, rgba(26,115,232,0.12) 70%, transparent);
+  pointer-events: none;
+}
+.logo-area {
+  height: 60px; display: flex; align-items: center; gap: 10px;
+  border-bottom: 1px solid var(--border); margin: 0 -12px; padding: 0 16px;
+  margin-bottom: 20px;
+}
+.logo-mark {
+  width: 30px; height: 30px; border-radius: 8px;
+  background: linear-gradient(135deg, #1A73E8, #0d4fa3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 700; color: #fff; letter-spacing: -0.5px;
+}
+.logo-text { font-size: 15px; font-weight: 700; color: var(--t1); letter-spacing: -0.3px; }
+.logo-sub { font-size: 9px; font-weight: 500; color: var(--t3); letter-spacing: 1.5px; text-transform: uppercase; margin-top: 1px; }
+
+.nav-section-label {
+  font-size: 9px; font-weight: 600; color: var(--t3);
+  letter-spacing: 1.8px; text-transform: uppercase;
+  padding: 0 8px; margin-bottom: 6px; margin-top: 20px;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px; border-radius: 8px; cursor: pointer;
+  color: var(--t2); font-size: 13px; font-weight: 500;
+  transition: all 0.15s; margin-bottom: 2px; position: relative;
+  border: 1px solid transparent;
+}
+.nav-item:hover { background: rgba(255,255,255,0.04); color: var(--t1); }
+.nav-item.active {
+  background: var(--blue-dim);
+  color: #60a5fa;
+  border-color: rgba(96,165,250,0.18);
+}
+.nav-icon { width: 18px; height: 18px; opacity: 0.9; flex-shrink: 0; }
+.nav-badge {
+  margin-left: auto; background: var(--red); color: #fff;
+  font-size: 10px; font-weight: 700; min-width: 18px; height: 18px;
+  border-radius: 9px; padding: 0 5px;
+  display: flex; align-items: center; justify-content: center;
+  animation: badge-pulse 2s ease-in-out infinite;
+}
+@keyframes badge-pulse {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.65; }
+}
+
+.sidebar-footer {
+  margin-top: auto; padding: 16px 0;
+  border-top: 1px solid var(--border);
+}
+.user-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 8px; cursor: pointer;
+}
+.user-card:hover { background: rgba(255,255,255,0.04); }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #1558b8, #0d4fa3); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #fff; }
+.user-name { font-size: 12px; font-weight: 600; color: var(--t1); }
+.user-role { font-size: 10px; color: var(--t3); margin-top: 1px; }
+
+/* ── Main ─────────────────────────────────────────────────────── */
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+
+/* ── Top bar ──────────────────────────────────────────────────── */
+.topbar {
+  height: 60px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 20px;
+  padding: 0 28px; flex-shrink: 0;
+  background: rgba(8,13,26,0.8);
+  backdrop-filter: blur(12px);
+}
+.topbar-title { font-size: 15px; font-weight: 600; color: var(--t1); }
+.topbar-sub { font-size: 11px; color: var(--t3); margin-top: 1px; }
+.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.live-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  animation: live-pulse 1.8s ease-in-out infinite;
+}
+@keyframes live-pulse {
+  0%,100% { opacity: 1; box-shadow: 0 0 8px var(--green); }
+  50% { opacity: 0.5; box-shadow: 0 0 3px var(--green); }
+}
+.live-label { font-size: 11px; font-weight: 600; color: var(--green); letter-spacing: 0.5px; }
+.topbar-clock { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--t2); }
+.search-box {
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 12px; width: 200px;
+  color: var(--t2); font-size: 12px; cursor: text;
+}
+.search-box input { background: none; border: none; outline: none; color: var(--t1); font-size: 12px; font-family: inherit; width: 100%; }
+.search-box input::placeholder { color: var(--t3); }
+
+/* ── KPI bar ──────────────────────────────────────────────────── */
+.kpi-bar {
+  display: grid; grid-template-columns: repeat(5, 1fr);
+  gap: 12px; padding: 16px 28px; flex-shrink: 0;
+}
+.kpi {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px 16px;
+  backdrop-filter: blur(20px);
+  transition: border-color 0.2s, background 0.2s;
+  cursor: default;
+}
+.kpi:hover { background: var(--card-hover); border-color: var(--border-hi); }
+.kpi-label { font-size: 10px; font-weight: 600; color: var(--t3); letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 6px; }
+.kpi-value { font-size: 26px; font-weight: 700; line-height: 1; color: var(--t1); letter-spacing: -0.5px; }
+.kpi-sub { font-size: 10px; color: var(--t3); margin-top: 4px; }
+.kpi.alert-kpi { border-color: rgba(255,68,68,0.22); background: rgba(255,68,68,0.05); }
+.kpi.alert-kpi .kpi-value { color: #ff6b6b; }
+.kpi.warn-kpi { border-color: rgba(255,152,0,0.22); background: rgba(255,152,0,0.04); }
+.kpi.warn-kpi .kpi-value { color: var(--amber); }
+.kpi.ok-kpi { border-color: rgba(63,207,92,0.18); }
+.kpi.ok-kpi .kpi-value { color: var(--green); }
+
+/* ── Content area ─────────────────────────────────────────────── */
+.content { flex: 1; overflow-y: auto; padding: 0 28px 28px; }
+
+/* ── View tabs ────────────────────────────────────────────────── */
+.view-tabs { display: flex; gap: 4px; margin-bottom: 20px; padding-top: 4px; }
+.tab-btn {
+  padding: 7px 16px; border-radius: 7px; border: 1px solid transparent;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  color: var(--t3); background: transparent; transition: all 0.15s;
+  letter-spacing: 0.2px;
+}
+.tab-btn:hover { color: var(--t1); background: rgba(255,255,255,0.04); }
+.tab-btn.active { color: #60a5fa; background: var(--blue-dim); border-color: rgba(96,165,250,0.2); }
+
+/* ── Section header ───────────────────────────────────────────── */
+.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.section-title { font-size: 13px; font-weight: 600; color: var(--t1); }
+.filter-pills { display: flex; gap: 6px; }
+.pill {
+  padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 500;
+  border: 1px solid var(--border); color: var(--t3); cursor: pointer; transition: all 0.15s;
+}
+.pill:hover { color: var(--t1); border-color: var(--border-hi); }
+.pill.active { background: var(--blue-dim); color: #60a5fa; border-color: rgba(96,165,250,0.25); }
+
+/* ── Patient roster table ─────────────────────────────────────── */
+.roster-table-wrap {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  backdrop-filter: blur(20px);
+  overflow: hidden;
+}
+.roster-table { width: 100%; border-collapse: collapse; }
+.roster-table thead tr {
+  border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+}
+.roster-table th {
+  padding: 11px 14px; text-align: left; font-size: 10px; font-weight: 600;
+  color: var(--t3); letter-spacing: 1.2px; text-transform: uppercase; white-space: nowrap;
+}
+.roster-table td { padding: 13px 14px; vertical-align: middle; }
+.roster-table tbody tr {
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  cursor: pointer; transition: background 0.12s;
+}
+.roster-table tbody tr:last-child { border-bottom: none; }
+.roster-table tbody tr:hover { background: rgba(255,255,255,0.04); }
+.roster-table tbody tr.alert-row { background: rgba(255,68,68,0.04); }
+.roster-table tbody tr.alert-row:hover { background: rgba(255,68,68,0.07); }
+.roster-table tbody tr.warn-row { background: rgba(255,152,0,0.03); }
+
+/* Patient name cell */
+.patient-cell { display: flex; align-items: center; gap: 10px; }
+.patient-avatar {
+  width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 600; color: #fff;
+}
+.patient-name { font-size: 13px; font-weight: 600; color: var(--t1); }
+.patient-age { font-size: 11px; color: var(--t3); }
+
+/* Vital cells */
+.vital-num { font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 500; }
+.vital-unit { font-size: 10px; color: var(--t3); margin-left: 2px; }
+.vital-normal { color: var(--green); }
+.vital-warn   { color: var(--amber); }
+.vital-crit   { color: var(--red); }
+.vital-offline { color: var(--slate); }
+
+/* Status badge */
+.status-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 8px; border-radius: 20px; font-size: 10px; font-weight: 600;
+  letter-spacing: 0.3px; white-space: nowrap;
+}
+.status-online  { background: var(--green-dim); color: var(--green); }
+.status-alert   { background: var(--red-dim); color: #ff6b6b; animation: badge-pulse 1.5s ease-in-out infinite; }
+.status-warning { background: var(--amber-dim); color: var(--amber); }
+.status-offline { background: var(--slate-dim); color: var(--slate); }
+.status-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+/* Room & floor */
+.room-tag { font-size: 12px; color: var(--t2); }
+.floor-tag { font-size: 10px; color: var(--t3); }
+
+/* Sparkline */
+.sparkline { display: inline-block; vertical-align: middle; }
+
+/* Signal bar */
+.signal-bar-wrap { display: flex; align-items: center; gap: 6px; }
+.signal-bar-bg { width: 48px; height: 3px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
+.signal-bar-fill { height: 100%; border-radius: 2px; }
+
+/* Action btn */
+.row-action {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 6px;
+  background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+  color: var(--t3); cursor: pointer; transition: all 0.15s;
+}
+.row-action:hover { background: var(--blue-dim); color: var(--blue); border-color: rgba(26,115,232,0.3); }
+.row-action svg { width: 14px; height: 14px; }
+
+/* ── Alerts view ──────────────────────────────────────────────── */
+.alerts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+.alert-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 14px; padding: 18px 20px;
+  backdrop-filter: blur(20px); cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.alert-card:hover { background: var(--card-hover); }
+.alert-card.critical {
+  border-color: rgba(255,68,68,0.3);
+  background: rgba(255,68,68,0.04);
+  animation: alert-border-pulse 2.5s ease-in-out infinite;
+}
+@keyframes alert-border-pulse {
+  0%,100% { border-color: rgba(255,68,68,0.3); background: rgba(255,68,68,0.04); }
+  50% { border-color: rgba(255,68,68,0.55); background: rgba(255,68,68,0.07); }
+}
+.alert-card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 12px; }
+.alert-type-icon {
+  width: 38px; height: 38px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center; font-size: 18px;
+  flex-shrink: 0;
+}
+.alert-type-icon.fall { background: var(--red-dim); }
+.alert-type-icon.anomaly { background: var(--amber-dim); }
+.alert-elapsed { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--t3); }
+.alert-patient { font-size: 14px; font-weight: 700; color: var(--t1); margin-bottom: 2px; }
+.alert-desc { font-size: 12px; color: var(--t2); }
+.alert-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; }
+.alert-room { font-size: 11px; color: var(--t3); }
+.alert-actions { display: flex; gap: 6px; }
+.btn-sm {
+  padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 600;
+  cursor: pointer; border: 1px solid; transition: all 0.15s; font-family: inherit;
+}
+.btn-primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+.btn-primary:hover { background: #1558b8; }
+.btn-ghost { background: rgba(255,255,255,0.05); border-color: var(--border); color: var(--t2); }
+.btn-ghost:hover { background: rgba(255,255,255,0.09); color: var(--t1); }
+
+/* Alert history table */
+.history-table { width: 100%; border-collapse: collapse; }
+.history-table th { padding: 10px 14px; text-align: left; font-size: 10px; font-weight: 600; color: var(--t3); letter-spacing: 1.2px; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+.history-table td { padding: 11px 14px; font-size: 12px; color: var(--t2); border-bottom: 1px solid rgba(255,255,255,0.03); }
+.history-table tbody tr:hover td { background: rgba(255,255,255,0.02); color: var(--t1); }
+.history-table tbody tr:last-child td { border-bottom: none; }
+
+/* ── Patient detail panel ─────────────────────────────────────── */
+.panel-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(3px);
+  display: none; opacity: 0;
+  transition: opacity 0.25s;
+}
+.panel-overlay.open { display: block; opacity: 1; }
+.detail-panel {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 520px; z-index: 101;
+  background: #0d1425;
+  border-left: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+  box-shadow: -24px 0 64px rgba(0,0,0,0.6);
+}
+.detail-panel.open { transform: translateX(0); }
+
+.panel-header {
+  padding: 20px 24px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-start; gap: 14px; flex-shrink: 0;
+}
+.panel-avatar {
+  width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 700; color: #fff;
+}
+.panel-patient-name { font-size: 18px; font-weight: 700; color: var(--t1); line-height: 1.2; }
+.panel-meta { font-size: 12px; color: var(--t3); margin-top: 4px; }
+.panel-close {
+  margin-left: auto; width: 30px; height: 30px; border-radius: 8px;
+  background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--t3); transition: all 0.15s; flex-shrink: 0;
+}
+.panel-close:hover { color: var(--t1); background: rgba(255,255,255,0.1); }
+
+.panel-body { flex: 1; overflow-y: auto; padding: 20px 24px; }
+.panel-section { margin-bottom: 24px; }
+.panel-section-title { font-size: 10px; font-weight: 600; color: var(--t3); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 12px; }
+
+.vital-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.vital-box {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.vital-box-label { font-size: 10px; font-weight: 600; color: var(--t3); letter-spacing: 1px; text-transform: uppercase; }
+.vital-box-value { font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 600; line-height: 1; }
+.vital-box-unit { font-size: 10px; color: var(--t3); }
+
+.device-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.device-field { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+.device-field-label { font-size: 9px; font-weight: 600; color: var(--t3); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 3px; }
+.device-field-value { font-size: 12px; font-weight: 500; color: var(--t1); }
+
+.panel-footer {
+  padding: 16px 24px; border-top: 1px solid var(--border);
+  display: flex; gap: 8px; flex-shrink: 0;
+}
+.btn-md {
+  flex: 1; padding: 10px; border-radius: 9px; font-size: 13px; font-weight: 600;
+  cursor: pointer; border: 1px solid; transition: all 0.15s; font-family: inherit;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.btn-md.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+.btn-md.primary:hover { background: #1558b8; }
+.btn-md.ghost { background: rgba(255,255,255,0.05); border-color: var(--border); color: var(--t2); }
+.btn-md.ghost:hover { color: var(--t1); background: rgba(255,255,255,0.09); }
+
+/* ── Micro-chart (inline SVG sparkline) ───────────────────────── */
+.spark-svg { display: block; }
+
+/* ── Toasts ───────────────────────────────────────────────────── */
+.toast-stack { position: fixed; bottom: 24px; right: 24px; z-index: 200; display: flex; flex-direction: column; gap: 8px; }
+.toast {
+  display: flex; align-items: center; gap: 10px;
+  background: #161d2e; border: 1px solid var(--border-hi);
+  border-radius: 10px; padding: 12px 16px; min-width: 280px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  animation: slide-in 0.25s ease;
+  font-size: 12px; color: var(--t2);
+}
+.toast.alert { border-color: rgba(255,68,68,0.35); }
+@keyframes slide-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.toast-icon { font-size: 16px; }
+.toast strong { color: var(--t1); }
+
+/* ── Intercom bar (active call strip) ────────────────────────── */
+.intercom-bar {
+  background: rgba(26,115,232,0.12); border-top: 1px solid rgba(26,115,232,0.25);
+  padding: 8px 28px; display: none; align-items: center; gap: 12px;
+  flex-shrink: 0;
+}
+.intercom-bar.active { display: flex; }
+.intercom-waves { display: flex; align-items: center; gap: 3px; }
+.intercom-waves span {
+  display: block; width: 3px; background: var(--blue); border-radius: 2px;
+  animation: wave 0.8s ease-in-out infinite;
+}
+.intercom-waves span:nth-child(2) { animation-delay: 0.15s; }
+.intercom-waves span:nth-child(3) { animation-delay: 0.3s; }
+@keyframes wave {
+  0%,100% { height: 6px; }
+  50% { height: 18px; }
+}
+
+/* ── History view ─────────────────────────────────────────────── */
+.history-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 14px; backdrop-filter: blur(20px); overflow: hidden; }
+
+/* ── Empty state ─────────────────────────────────────────────── */
+.empty { text-align: center; padding: 60px 20px; color: var(--t3); }
+.empty-icon { font-size: 40px; margin-bottom: 12px; opacity: 0.4; }
+
+/* ── View containers ─────────────────────────────────────────── */
+.view { display: none; }
+.view.active { display: block; }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- ── Sidebar ──────────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="logo-area">
+      <div class="logo-mark">AN</div>
+      <div>
+        <div class="logo-text">Anees</div>
+        <div class="logo-sub">Clinical OS</div>
+      </div>
+    </div>
+
+    <div class="nav-section-label">Overview</div>
+    <div class="nav-item active" onclick="switchView('roster',this)">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7">
+        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+      </svg>
+      Patient Roster
+    </div>
+    <div class="nav-item" onclick="switchView('alerts',this)" id="nav-alerts">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7">
+        <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/>
+      </svg>
+      Alerts Center
+      <span class="nav-badge" id="alert-badge">3</span>
+    </div>
+    <div class="nav-item" onclick="switchView('analytics',this)">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7">
+        <path d="M18 20V10M12 20V4M6 20v-6"/>
+      </svg>
+      Analytics
+    </div>
+
+    <div class="nav-section-label">Management</div>
+    <div class="nav-item">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7">
+        <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+      </svg>
+      Devices
+    </div>
+    <div class="nav-item">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8"/>
+      </svg>
+      Reports
+    </div>
+    <div class="nav-item">
+      <svg class="nav-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7">
+        <circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M4.93 19.07l1.41-1.41M19.07 19.07l-1.41-1.41M4.93 4.93l1.41 1.41M22 12h-2M4 12H2M12 22v-2M12 4V2"/>
+      </svg>
+      Settings
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="user-card">
+        <div class="avatar">DR</div>
+        <div>
+          <div class="user-name">Dr. Rania Hassan</div>
+          <div class="user-role">Clinical Admin</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main area ──────────────────────────────────────────────── -->
+  <div class="main">
+    <!-- Top bar -->
+    <header class="topbar">
+      <div>
+        <div class="topbar-title" id="view-title">Patient Roster</div>
+        <div class="topbar-sub" id="view-sub">Al-Salam Care Center · 12 patients monitored</div>
+      </div>
+      <div class="topbar-right">
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="live-dot"></div>
+          <span class="live-label">LIVE</span>
+        </div>
+        <div class="search-box">
+          <svg width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="color:var(--t3);flex-shrink:0">
+            <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+          </svg>
+          <input type="text" placeholder="Search patients…" oninput="filterPatients(this.value)">
+        </div>
+        <div class="topbar-clock" id="clock">--:--:--</div>
+      </div>
+    </header>
+
+    <!-- KPI strip -->
+    <div class="kpi-bar">
+      <div class="kpi ok-kpi">
+        <div class="kpi-label">Online</div>
+        <div class="kpi-value">10</div>
+        <div class="kpi-sub">of 12 patients</div>
+      </div>
+      <div class="kpi alert-kpi">
+        <div class="kpi-label">Active Alerts</div>
+        <div class="kpi-value">2</div>
+        <div class="kpi-sub">Require response</div>
+      </div>
+      <div class="kpi warn-kpi">
+        <div class="kpi-label">Warnings</div>
+        <div class="kpi-value">1</div>
+        <div class="kpi-sub">Vital anomaly</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Offline</div>
+        <div class="kpi-value" style="color:var(--slate)">2</div>
+        <div class="kpi-sub">No heartbeat > 5 min</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">Avg Signal</div>
+        <div class="kpi-value" style="color:#60a5fa">84<span style="font-size:14px;font-weight:400">%</span></div>
+        <div class="kpi-sub">Fleet signal quality</div>
+      </div>
+    </div>
+
+    <!-- Intercom bar -->
+    <div class="intercom-bar" id="intercom-bar">
+      <div class="intercom-waves">
+        <span></span><span></span><span></span>
+      </div>
+      <span style="font-size:12px;font-weight:600;color:var(--blue)">Live Audio · Room 104</span>
+      <span style="font-size:11px;color:var(--t3)" id="call-timer">00:00</span>
+      <span style="margin-left:auto;display:flex;gap:8px">
+        <button class="btn-sm btn-ghost" onclick="endCall()">End Call</button>
+      </span>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+      <div class="view-tabs">
+        <button class="tab-btn active" onclick="switchTab('all',this)" id="tab-all">All Patients</button>
+        <button class="tab-btn" onclick="switchTab('alert',this)" id="tab-alert">🔴 Alerts (2)</button>
+        <button class="tab-btn" onclick="switchTab('warning',this)">⚠ Warnings (1)</button>
+        <button class="tab-btn" onclick="switchTab('offline',this)">Offline (2)</button>
+        <button class="tab-btn" onclick="switchTab('ok',this)">Stable (9)</button>
+      </div>
+
+      <!-- ── ROSTER VIEW ──────────────────────────────────────── -->
+      <div class="view active" id="view-roster">
+        <div class="section-header">
+          <span class="section-title" style="color:var(--t2);font-weight:400;font-size:11px">Showing 12 patients · 3 floors</span>
+          <div class="filter-pills">
+            <span class="pill active">All Floors</span>
+            <span class="pill">Floor 1</span>
+            <span class="pill">Floor 2</span>
+            <span class="pill">Floor 3</span>
+          </div>
+        </div>
+
+        <div class="roster-table-wrap">
+          <table class="roster-table">
+            <thead>
+              <tr>
+                <th>Patient</th>
+                <th>Room</th>
+                <th>Status</th>
+                <th>Heart Rate</th>
+                <th>Resp. Rate</th>
+                <th>Signal</th>
+                <th>Last Seen</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="roster-body">
+              <!-- populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── ALERTS VIEW ──────────────────────────────────────── -->
+      <div class="view" id="view-alerts">
+        <div class="section-header" style="margin-bottom:16px">
+          <span class="section-title">Active Incidents</span>
+        </div>
+        <div class="alerts-grid">
+          <!-- Fall alert 1 -->
+          <div class="alert-card critical" onclick="openPanel(0)">
+            <div class="alert-card-header">
+              <div style="display:flex;align-items:center;gap:12px">
+                <div class="alert-type-icon fall">🚨</div>
+                <div>
+                  <div class="alert-patient">Fatima Al-Mansouri</div>
+                  <div class="alert-desc">Fall detected · Grace period elapsed</div>
+                </div>
+              </div>
+              <div class="alert-elapsed">00:47</div>
+            </div>
+            <div style="display:flex;gap:8px;margin-bottom:12px">
+              <span class="status-badge status-alert"><span class="status-dot"></span>FALL DISPATCH</span>
+              <span class="status-badge" style="background:var(--red-dim);color:#ff6b6b">Confidence 94%</span>
+            </div>
+            <div class="alert-footer">
+              <span class="alert-room">Room 104 · Floor 1</span>
+              <div class="alert-actions">
+                <button class="btn-sm btn-ghost" onclick="event.stopPropagation();startCall()">🎙 Intercom</button>
+                <button class="btn-sm btn-primary" onclick="event.stopPropagation()">Acknowledge</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Fall alert 2 -->
+          <div class="alert-card critical" onclick="openPanel(1)">
+            <div class="alert-card-header">
+              <div style="display:flex;align-items:center;gap:12px">
+                <div class="alert-type-icon fall">🚨</div>
+                <div>
+                  <div class="alert-patient">Khalid Al-Rashidi</div>
+                  <div class="alert-desc">Fall detected · Caregiver notified</div>
+                </div>
+              </div>
+              <div class="alert-elapsed">02:13</div>
+            </div>
+            <div style="display:flex;gap:8px;margin-bottom:12px">
+              <span class="status-badge status-alert"><span class="status-dot"></span>DISPATCHED</span>
+              <span class="status-badge" style="background:var(--red-dim);color:#ff6b6b">Confidence 88%</span>
+            </div>
+            <div class="alert-footer">
+              <span class="alert-room">Room 207 · Floor 2</span>
+              <div class="alert-actions">
+                <button class="btn-sm btn-ghost" onclick="event.stopPropagation()">🎙 Intercom</button>
+                <button class="btn-sm btn-primary" onclick="event.stopPropagation()">Acknowledge</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Vital anomaly -->
+          <div class="alert-card" style="border-color:rgba(255,152,0,0.22);background:rgba(255,152,0,0.03)">
+            <div class="alert-card-header">
+              <div style="display:flex;align-items:center;gap:12px">
+                <div class="alert-type-icon anomaly">⚠️</div>
+                <div>
+                  <div class="alert-patient">Mariam Al-Farsi</div>
+                  <div class="alert-desc">HR 118 bpm · Elevated 4 consecutive readings</div>
+                </div>
+              </div>
+              <div class="alert-elapsed">08:02</div>
+            </div>
+            <div style="display:flex;gap:8px;margin-bottom:12px">
+              <span class="status-badge status-warning"><span class="status-dot"></span>VITAL ANOMALY</span>
+              <span class="status-badge" style="background:var(--amber-dim);color:var(--amber)">HR Threshold</span>
+            </div>
+            <div class="alert-footer">
+              <span class="alert-room">Room 301 · Floor 3</span>
+              <div class="alert-actions">
+                <button class="btn-sm btn-ghost" onclick="event.stopPropagation()">View Vitals</button>
+                <button class="btn-sm" style="background:var(--amber-dim);border-color:rgba(255,152,0,0.3);color:var(--amber);padding:5px 12px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">Resolve</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Alert history -->
+        <div class="section-header">
+          <span class="section-title">Alert History — Last 24h</span>
+        </div>
+        <div class="history-wrap">
+          <table class="history-table">
+            <thead><tr>
+              <th>Time</th><th>Patient</th><th>Room</th><th>Type</th><th>Status</th><th>Resolved by</th>
+            </tr></thead>
+            <tbody>
+              <tr>
+                <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--t3)">09:14</td>
+                <td style="color:var(--t1);font-weight:500">Omar Bin Saud</td>
+                <td>Room 102</td>
+                <td><span class="status-badge status-online">Fall</span></td>
+                <td><span class="status-badge status-online">Resolved</span></td>
+                <td>Nurse Aisha</td>
+              </tr>
+              <tr>
+                <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--t3)">07:38</td>
+                <td style="color:var(--t1);font-weight:500">Fatima Al-Mansouri</td>
+                <td>Room 104</td>
+                <td><span class="status-badge status-online">Fall</span></td>
+                <td><span class="status-badge" style="background:var(--blue-dim);color:#60a5fa">False Alarm</span></td>
+                <td>Patient</td>
+              </tr>
+              <tr>
+                <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--t3)">06:55</td>
+                <td style="color:var(--t1);font-weight:500">Hessa Al-Kuwari</td>
+                <td>Room 205</td>
+                <td><span class="status-badge status-warning">Vital</span></td>
+                <td><span class="status-badge status-online">Resolved</span></td>
+                <td>Dr. Rania</td>
+              </tr>
+              <tr>
+                <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--t3)">04:12</td>
+                <td style="color:var(--t1);font-weight:500">Saleh Al-Otaibi</td>
+                <td>Room 312</td>
+                <td><span class="status-badge status-warning">Vital</span></td>
+                <td><span class="status-badge status-online">Resolved</span></td>
+                <td>Nurse Aisha</td>
+              </tr>
+              <tr>
+                <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--t3)">02:07</td>
+                <td style="color:var(--t1);font-weight:500">Khalid Al-Rashidi</td>
+                <td>Room 207</td>
+                <td><span class="status-badge status-online">Fall</span></td>
+                <td><span class="status-badge status-online">Resolved</span></td>
+                <td>Nurse Fatma</td>
+              </tr>
+              <tr>
+                <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--t3)">Yesterday 23:48</td>
+                <td style="color:var(--t1);font-weight:500">Nora Al-Ghamdi</td>
+                <td>Room 106</td>
+                <td><span class="status-badge status-online">Fall</span></td>
+                <td><span class="status-badge status-online">Resolved</span></td>
+                <td>On-call staff</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── ANALYTICS VIEW ───────────────────────────────────── -->
+      <div class="view" id="view-analytics">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">
+          <div class="kpi" style="grid-column:span 3;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px">
+            <div class="kpi-label">Facility Alert Frequency — Last 7 Days</div>
+            <div style="margin-top:16px">
+              <svg width="100%" height="80" viewBox="0 0 700 80" preserveAspectRatio="none">
+                <!-- Area chart line for alerts -->
+                <defs>
+                  <linearGradient id="area-grad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#1A73E8" stop-opacity="0.3"/>
+                    <stop offset="100%" stop-color="#1A73E8" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <path d="M0 70 L100 55 L200 40 L300 50 L400 25 L500 45 L600 30 L700 20 L700 80 L0 80 Z" fill="url(#area-grad)"/>
+                <path d="M0 70 L100 55 L200 40 L300 50 L400 25 L500 45 L600 30 L700 20" fill="none" stroke="#1A73E8" stroke-width="2" stroke-linecap="round"/>
+                <!-- Data points -->
+                <circle cx="0" cy="70" r="3" fill="#1A73E8"/>
+                <circle cx="100" cy="55" r="3" fill="#1A73E8"/>
+                <circle cx="200" cy="40" r="3" fill="#1A73E8"/>
+                <circle cx="300" cy="50" r="3" fill="#1A73E8"/>
+                <circle cx="400" cy="25" r="3" fill="#ff4444"/>
+                <circle cx="500" cy="45" r="3" fill="#1A73E8"/>
+                <circle cx="600" cy="30" r="3" fill="#1A73E8"/>
+                <circle cx="700" cy="20" r="3" fill="#1A73E8"/>
+              </svg>
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--t3);margin-top:4px">
+                <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span><span>Today</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="kpi" style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px">
+            <div class="kpi-label">Alert Types Breakdown</div>
+            <div style="margin-top:16px;display:flex;flex-direction:column;gap:10px">
+              <div>
+                <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:12px;color:var(--t2)">Fall Detection</span><span style="font-size:12px;font-weight:600;color:var(--red)">14</span></div>
+                <div style="height:4px;background:rgba(255,255,255,0.08);border-radius:2px"><div style="height:100%;width:70%;background:var(--red);border-radius:2px"></div></div>
+              </div>
+              <div>
+                <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:12px;color:var(--t2)">Vital Anomaly</span><span style="font-size:12px;font-weight:600;color:var(--amber)">5</span></div>
+                <div style="height:4px;background:rgba(255,255,255,0.08);border-radius:2px"><div style="height:100%;width:25%;background:var(--amber);border-radius:2px"></div></div>
+              </div>
+              <div>
+                <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:12px;color:var(--t2)">Device Offline</span><span style="font-size:12px;font-weight:600;color:var(--slate)">1</span></div>
+                <div style="height:4px;background:rgba(255,255,255,0.08);border-radius:2px"><div style="height:100%;width:5%;background:var(--slate);border-radius:2px"></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="kpi" style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px">
+            <div class="kpi-label">Average Response Time</div>
+            <div style="margin-top:12px">
+              <div style="font-family:'JetBrains Mono',monospace;font-size:40px;font-weight:700;color:var(--green);letter-spacing:-2px">2:34</div>
+              <div style="font-size:11px;color:var(--t3);margin-top:4px">min:sec — 18% faster vs last week</div>
+              <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
+                <div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--t3)">Day shift</span><span style="color:var(--green)">1:58</span></div>
+                <div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--t3)">Night shift</span><span style="color:var(--amber)">3:12</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Patient detail panel ────────────────────────────────────── -->
+<div class="panel-overlay" id="overlay" onclick="closePanel()"></div>
+<div class="detail-panel" id="detail-panel">
+  <div class="panel-header">
+    <div class="panel-avatar" id="panel-avatar">FA</div>
+    <div>
+      <div class="panel-patient-name" id="panel-name">—</div>
+      <div class="panel-meta" id="panel-meta">—</div>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:flex-start">
+      <span class="status-badge" id="panel-status-badge">—</span>
+      <div class="panel-close" onclick="closePanel()">
+        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path d="M18 6L6 18M6 6l12 12"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel-body">
+    <!-- Live vitals -->
+    <div class="panel-section">
+      <div class="panel-section-title">Live Vitals</div>
+      <div class="vital-grid">
+        <div class="vital-box">
+          <div class="vital-box-label">Heart Rate</div>
+          <div class="vital-box-value vital-normal" id="panel-hr">72</div>
+          <div class="vital-box-unit">BPM</div>
+        </div>
+        <div class="vital-box">
+          <div class="vital-box-label">Respiration</div>
+          <div class="vital-box-value vital-normal" id="panel-rr">14</div>
+          <div class="vital-box-unit">BRPM</div>
+        </div>
+        <div class="vital-box">
+          <div class="vital-box-label">Signal Quality</div>
+          <div class="vital-box-value" id="panel-signal" style="color:#60a5fa">88%</div>
+          <div class="vital-box-unit">SNR</div>
+        </div>
+        <div class="vital-box">
+          <div class="vital-box-label">Motion</div>
+          <div class="vital-box-value" id="panel-motion" style="color:var(--t2)">Still</div>
+          <div class="vital-box-unit">Activity</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HR trend -->
+    <div class="panel-section">
+      <div class="panel-section-title">HR Trend — Last 60 min</div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px">
+        <svg width="100%" height="72" viewBox="0 0 440 72" preserveAspectRatio="none" id="panel-spark">
+          <defs>
+            <linearGradient id="spark-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#1A73E8" stop-opacity="0.25"/>
+              <stop offset="100%" stop-color="#1A73E8" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <path d="M0 48 C40 44 60 38 90 36 S150 28 180 32 S240 22 280 20 S340 26 380 18 L440 14 L440 72 L0 72 Z" fill="url(#spark-grad)"/>
+          <path d="M0 48 C40 44 60 38 90 36 S150 28 180 32 S240 22 280 20 S340 26 380 18 L440 14" fill="none" stroke="#1A73E8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--t3);margin-top:6px">
+          <span>60 min ago</span><span>30 min ago</span><span>Now</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sleep last night -->
+    <div class="panel-section">
+      <div class="panel-section-title">Sleep — Last Night</div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px">
+        <div style="display:flex;gap:0;height:10px;border-radius:6px;overflow:hidden;margin-bottom:10px">
+          <div style="background:#3730a3;flex:0 0 18%" title="Deep 18%"></div>
+          <div style="background:#7c3aed;flex:0 0 22%" title="REM 22%"></div>
+          <div style="background:#3b82f6;flex:0 0 42%" title="Light 42%"></div>
+          <div style="background:#f59e0b;flex:0 0 18%" title="Awake 18%"></div>
+        </div>
+        <div style="display:flex;gap:16px;font-size:11px">
+          <span style="color:#6366f1">■ Deep 18%</span>
+          <span style="color:#7c3aed">■ REM 22%</span>
+          <span style="color:#60a5fa">■ Light 42%</span>
+          <span style="color:#f59e0b">■ Awake 18%</span>
+        </div>
+        <div style="margin-top:10px;font-size:12px;color:var(--t2)">Total sleep: <strong style="color:var(--t1)">6h 24m</strong> · Quality: <strong style="color:var(--green)">Good</strong></div>
+      </div>
+    </div>
+
+    <!-- Device info -->
+    <div class="panel-section">
+      <div class="panel-section-title">Device</div>
+      <div class="device-info-grid">
+        <div class="device-field">
+          <div class="device-field-label">Serial</div>
+          <div class="device-field-value" id="panel-serial" style="font-family:'JetBrains Mono',monospace;font-size:11px">BD60S1-A4F2</div>
+        </div>
+        <div class="device-field">
+          <div class="device-field-label">Firmware</div>
+          <div class="device-field-value" id="panel-fw">2.4.1</div>
+        </div>
+        <div class="device-field">
+          <div class="device-field-label">Occlusion</div>
+          <div class="device-field-value" id="panel-occlusion" style="color:var(--green)">Clear</div>
+        </div>
+        <div class="device-field">
+          <div class="device-field-label">Last Heartbeat</div>
+          <div class="device-field-value" id="panel-heartbeat" style="color:var(--green)">Just now</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alert history (mini) -->
+    <div class="panel-section">
+      <div class="panel-section-title">Recent Alerts</div>
+      <div id="panel-alert-history" style="display:flex;flex-direction:column;gap:6px">
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--t1)">Fall Detection</div>
+            <div style="font-size:11px;color:var(--t3)">Today 07:38</div>
+          </div>
+          <span class="status-badge" style="background:var(--blue-dim);color:#60a5fa">False Alarm</span>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--t1)">Fall Detection</div>
+            <div style="font-size:11px;color:var(--t3)">Yesterday 22:11</div>
+          </div>
+          <span class="status-badge status-online">Resolved</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel-footer">
+    <button class="btn-md ghost" onclick="startCall()">🎙 Intercom</button>
+    <button class="btn-md ghost">📊 Full Report</button>
+    <button class="btn-md primary">View All Alerts</button>
+  </div>
+</div>
+
+<!-- ── Toast container ─────────────────────────────────────────── -->
+<div class="toast-stack" id="toast-stack"></div>
+
+<script>
+// ── Data ───────────────────────────────────────────────────────────
+const PATIENTS = [
+  { id:0,  name:'Fatima Al-Mansouri',  age:78, initials:'FA', color:'#d32f2f', room:'104', floor:1, status:'alert',   hr:82,  rr:18, signal:0.91, motion:'Active', serial:'BD60S1-A4F2', fw:'2.4.1', occlusion:'Clear',  hb:'Just now',  hrHistory:[70,72,75,78,80,82,85,84,82], rrHistory:[14,15,16,17,18,18,17,18,18] },
+  { id:1,  name:'Khalid Al-Rashidi',   age:83, initials:'KR', color:'#b71c1c', room:'207', floor:2, status:'alert',   hr:null,rr:null,signal:0,    motion:'Unknown',serial:'BD60S1-B3E9', fw:'2.3.8', occlusion:'Full',   hb:'3 min ago', hrHistory:[65,67,68,66,null,null,null,null,null], rrHistory:[13,14,13,14,null,null,null,null,null] },
+  { id:2,  name:'Mariam Al-Farsi',     age:71, initials:'MF', color:'#e65100', room:'301', floor:3, status:'warning', hr:118, rr:22, signal:0.76, motion:'Light',  serial:'BD60S1-C7K1', fw:'2.4.1', occlusion:'Clear',  hb:'Just now',  hrHistory:[95,100,108,112,115,116,118,118,118], rrHistory:[16,17,18,19,20,21,22,22,22] },
+  { id:3,  name:'Omar Bin Saud',       age:69, initials:'OS', color:'#1565c0', room:'102', floor:1, status:'ok',      hr:68,  rr:13, signal:0.94, motion:'Still',  serial:'BD60S1-D2M4', fw:'2.4.2', occlusion:'Clear',  hb:'Just now',  hrHistory:[70,69,68,67,68,68,68,69,68], rrHistory:[13,13,12,13,13,13,13,13,13] },
+  { id:4,  name:'Hessa Al-Kuwari',     age:75, initials:'HK', color:'#4a148c', room:'205', floor:2, status:'ok',      hr:74,  rr:15, signal:0.88, motion:'Still',  serial:'BD60S1-E5P8', fw:'2.4.1', occlusion:'Clear',  hb:'Just now',  hrHistory:[72,73,74,73,74,74,75,74,74], rrHistory:[15,15,14,15,15,15,15,15,15] },
+  { id:5,  name:'Abdullah Al-Zaabi',   age:80, initials:'AZ', color:'#006064', room:'103', floor:1, status:'ok',      hr:72,  rr:14, signal:0.82, motion:'Still',  serial:'BD60S1-F9R3', fw:'2.4.0', occlusion:'Clear',  hb:'Just now',  hrHistory:[71,72,72,73,72,72,71,72,72], rrHistory:[14,14,14,14,14,15,14,14,14] },
+  { id:6,  name:'Nora Al-Ghamdi',      age:77, initials:'NG', color:'#880e4f', room:'106', floor:1, status:'ok',      hr:78,  rr:16, signal:0.79, motion:'Light',  serial:'BD60S1-G1S6', fw:'2.3.9', occlusion:'Clear',  hb:'Just now',  hrHistory:[76,77,78,77,78,79,78,78,78], rrHistory:[15,16,16,15,16,16,16,16,16] },
+  { id:7,  name:'Saleh Al-Otaibi',     age:84, initials:'SO', color:'#01579b', room:'312', floor:3, status:'ok',      hr:65,  rr:12, signal:0.91, motion:'Still',  serial:'BD60S1-H4T0', fw:'2.4.2', occlusion:'Clear',  hb:'Just now',  hrHistory:[64,65,65,65,66,65,65,64,65], rrHistory:[12,12,12,12,12,13,12,12,12] },
+  { id:8,  name:'Layla Al-Hamdan',     age:73, initials:'LH', color:'#33691e', room:'208', floor:2, status:'ok',      hr:76,  rr:15, signal:0.85, motion:'Still',  serial:'BD60S1-I7U2', fw:'2.4.1', occlusion:'Clear',  hb:'Just now',  hrHistory:[75,76,76,77,76,76,75,76,76], rrHistory:[15,15,15,14,15,15,15,15,15] },
+  { id:9,  name:'Tariq Al-Muhairi',    age:81, initials:'TM', color:'#4e342e', room:'310', floor:3, status:'ok',      hr:69,  rr:13, signal:0.77, motion:'Still',  serial:'BD60S1-J2V5', fw:'2.4.0', occlusion:'Clear',  hb:'Just now',  hrHistory:[68,69,69,70,69,69,68,69,69], rrHistory:[13,13,13,13,13,14,13,13,13] },
+  { id:10, name:'Maryam Bin Hamad',    age:76, initials:'MB', color:'#37474f', room:'209', floor:2, status:'offline', hr:null,rr:null,signal:0,    motion:'Unknown',serial:'BD60S1-K5W8', fw:'2.3.7', occlusion:'Unknown',hb:'12 min ago', hrHistory:[], rrHistory:[] },
+  { id:11, name:'Jassim Al-Thani',     age:79, initials:'JT', color:'#455a64', room:'105', floor:1, status:'offline', hr:null,rr:null,signal:0,    motion:'Unknown',serial:'BD60S1-L9X1', fw:'2.4.1', occlusion:'Unknown',hb:'8 min ago',  hrHistory:[], rrHistory:[] },
+];
+
+// ── State ──────────────────────────────────────────────────────────
+let currentFilter = 'all';
+let currentView   = 'roster';
+let callInterval  = null;
+let callSeconds   = 0;
+
+// ── Clock ──────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(now.getMinutes()).padStart(2,'0');
+  const s = String(now.getSeconds()).padStart(2,'0');
+  document.getElementById('clock').textContent = `${h}:${m}:${s}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── Sparkline SVG ──────────────────────────────────────────────────
+function buildSparkline(data, color, w=60, h=20) {
+  if (!data || data.length < 2) {
+    return `<svg width="${w}" height="${h}"><line x1="0" y1="${h/2}" x2="${w}" y2="${h/2}" stroke="rgba(255,255,255,0.1)" stroke-width="1"/></svg>`;
+  }
+  const valid = data.filter(v => v !== null);
+  const mn = Math.min(...valid) - 2;
+  const mx = Math.max(...valid) + 2;
+  const pts = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * w;
+    const y = v === null ? h/2 : h - ((v - mn) / (mx - mn)) * h;
+    return `${x},${y}`;
+  });
+  return `<svg class="sparkline spark-svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+// ── Status config ──────────────────────────────────────────────────
+function statusBadge(p) {
+  switch(p.status) {
+    case 'alert':   return `<span class="status-badge status-alert"><span class="status-dot"></span>FALL ALERT</span>`;
+    case 'warning': return `<span class="status-badge status-warning"><span class="status-dot"></span>WARNING</span>`;
+    case 'offline': return `<span class="status-badge status-offline"><span class="status-dot"></span>OFFLINE</span>`;
+    default:        return `<span class="status-badge status-online"><span class="status-dot"></span>STABLE</span>`;
+  }
+}
+function vitalClass(v, mn, mx) {
+  if (v === null) return 'vital-offline';
+  if (v < mn || v > mx) return 'vital-crit';
+  if (v < mn * 1.1 || v > mx * 0.9) return 'vital-warn';
+  return 'vital-normal';
+}
+function signalColor(q) {
+  if (q === 0) return 'var(--slate)';
+  if (q >= 0.7) return 'var(--green)';
+  if (q >= 0.4) return 'var(--amber)';
+  return 'var(--red)';
+}
+function rowClass(p) {
+  if (p.status === 'alert')   return 'alert-row';
+  if (p.status === 'warning') return 'warn-row';
+  return '';
+}
+
+// ── Render roster ──────────────────────────────────────────────────
+function renderRoster(filter='all', search='') {
+  const tbody = document.getElementById('roster-body');
+  let list = PATIENTS;
+  if (filter !== 'all') list = list.filter(p => p.status === filter || (filter==='offline' && p.status==='offline'));
+  if (search) {
+    const q = search.toLowerCase();
+    list = list.filter(p => p.name.toLowerCase().includes(q) || p.room.includes(q));
+  }
+  tbody.innerHTML = list.map(p => {
+    const hrClass = vitalClass(p.hr, 45, 110);
+    const rrClass = vitalClass(p.rr, 8, 25);
+    const sigFill = Math.round(p.signal * 100);
+    const sigColor = signalColor(p.signal);
+    const hrSpark = buildSparkline(p.hrHistory, p.status === 'alert' ? '#ff4444' : '#1A73E8');
+    return `<tr class="${rowClass(p)}" onclick="openPanel(${p.id})">
+      <td>
+        <div class="patient-cell">
+          <div class="patient-avatar" style="background:${p.color}">${p.initials}</div>
+          <div>
+            <div class="patient-name">${p.name}</div>
+            <div class="patient-age">${p.age} yrs</div>
+          </div>
+        </div>
+      </td>
+      <td>
+        <div class="room-tag">Room ${p.room}</div>
+        <div class="floor-tag">Floor ${p.floor}</div>
+      </td>
+      <td>${statusBadge(p)}</td>
+      <td>
+        <span class="vital-num ${hrClass}">${p.hr ?? '—'}</span>
+        <span class="vital-unit">BPM</span>
+        <div style="margin-top:3px">${hrSpark}</div>
+      </td>
+      <td>
+        <span class="vital-num ${rrClass}">${p.rr ?? '—'}</span>
+        <span class="vital-unit">BRPM</span>
+      </td>
+      <td>
+        <div class="signal-bar-wrap">
+          <div class="signal-bar-bg"><div class="signal-bar-fill" style="width:${sigFill}%;background:${sigColor}"></div></div>
+          <span style="font-size:11px;color:${sigColor};font-family:'JetBrains Mono',monospace">${sigFill}%</span>
+        </div>
+      </td>
+      <td style="font-size:11px;color:var(--t3)">${p.hb}</td>
+      <td>
+        <div style="display:flex;gap:6px">
+          <div class="row-action" title="Intercom" onclick="event.stopPropagation();startCall()">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.84 9.5c-.91-2.22.4-4.51 2.23-5.29A2 2 0 018 4.09v3a2 2 0 00.45 1.31l1.27 1.27a16 16 0 006.91 6.91l1.27 1.27A2 2 0 0019 18h3a2 2 0 01-.08.92z"/></svg>
+          </div>
+          <div class="row-action" title="View Details">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.7"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </div>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── View switching ─────────────────────────────────────────────────
+function switchView(view, navEl) {
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  navEl.classList.add('active');
+  currentView = view;
+  document.getElementById('view-roster').classList.remove('active');
+  document.getElementById('view-alerts').classList.remove('active');
+  document.getElementById('view-analytics').classList.remove('active');
+  const viewEl = document.getElementById(`view-${view}`);
+  if (viewEl) viewEl.classList.add('active');
+  const titles = { roster:'Patient Roster', alerts:'Alerts Center', analytics:'Analytics & Reports', devices:'Device Fleet', reports:'Reports' };
+  const subs   = { roster:'Al-Salam Care Center — 12 patients monitored', alerts:'Active incidents and resolution history', analytics:'Facility-wide metrics and trends', devices:'mmWave sensor fleet management', reports:'Clinical exports and summaries' };
+  document.getElementById('view-title').textContent = titles[view] || view;
+  document.getElementById('view-sub').textContent   = subs[view]   || '';
+}
+
+// ── Tab filtering ──────────────────────────────────────────────────
+function switchTab(filter, el) {
+  currentFilter = filter;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderRoster(filter);
+}
+
+function filterPatients(q) {
+  renderRoster(currentFilter, q);
+}
+
+// ── Patient detail panel ───────────────────────────────────────────
+function openPanel(id) {
+  const p = PATIENTS[id];
+  if (!p) return;
+  document.getElementById('panel-avatar').textContent = p.initials;
+  document.getElementById('panel-avatar').style.background = p.color;
+  document.getElementById('panel-name').textContent = p.name;
+  document.getElementById('panel-meta').textContent = `${p.age} years · Room ${p.room} · Floor ${p.floor}`;
+  // Status badge
+  const sb = document.getElementById('panel-status-badge');
+  sb.textContent = p.status.charAt(0).toUpperCase() + p.status.slice(1);
+  sb.className = 'status-badge status-' + (p.status === 'ok' ? 'online' : p.status);
+  // Vitals
+  const hrEl = document.getElementById('panel-hr');
+  hrEl.textContent = p.hr ?? '—';
+  hrEl.className = 'vital-box-value ' + vitalClass(p.hr, 45, 110);
+  const rrEl = document.getElementById('panel-rr');
+  rrEl.textContent = p.rr ?? '—';
+  rrEl.className = 'vital-box-value ' + vitalClass(p.rr, 8, 25);
+  const sig = Math.round(p.signal * 100);
+  document.getElementById('panel-signal').textContent = sig ? `${sig}%` : '—';
+  document.getElementById('panel-motion').textContent = p.motion;
+  document.getElementById('panel-serial').textContent = p.serial;
+  document.getElementById('panel-fw').textContent = p.fw;
+  document.getElementById('panel-occlusion').textContent = p.occlusion;
+  document.getElementById('panel-occlusion').style.color = p.occlusion === 'Clear' ? 'var(--green)' : p.occlusion === 'Partial' ? 'var(--amber)' : p.occlusion === 'Full' ? 'var(--red)' : 'var(--slate)';
+  document.getElementById('panel-heartbeat').textContent = p.hb;
+  // Sparkline with more data
+  const spark = document.getElementById('panel-spark');
+  const pts = p.hrHistory;
+  if (pts && pts.length > 1) {
+    const valid = pts.filter(v => v !== null);
+    const mn = Math.min(...valid) - 5;
+    const mx = Math.max(...valid) + 5;
+    const coords = pts.map((v,i) => {
+      const x = (i / (pts.length-1)) * 440;
+      const y = v === null ? 50 : 72 - ((v - mn) / (mx - mn)) * 68;
+      return [x, y];
+    });
+    const pathD = coords.map((c,i) => (i===0 ? `M${c[0]} ${c[1]}` : `L${c[0]} ${c[1]}`)).join(' ');
+    const fillD = pathD + ` L${coords[coords.length-1][0]} 72 L0 72 Z`;
+    const color = p.status === 'alert' ? '#ff4444' : '#1A73E8';
+    const gradId = 'sg' + id;
+    spark.innerHTML = `
+      <defs>
+        <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${color}" stop-opacity="0.25"/>
+          <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <path d="${fillD}" fill="url(#${gradId})"/>
+      <path d="${pathD}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    `;
+  }
+  // Show
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById('detail-panel').classList.add('open');
+}
+
+function closePanel() {
+  document.getElementById('overlay').classList.remove('open');
+  document.getElementById('detail-panel').classList.remove('open');
+}
+
+// ── Intercom ───────────────────────────────────────────────────────
+function startCall() {
+  closePanel();
+  document.getElementById('intercom-bar').classList.add('active');
+  callSeconds = 0;
+  if (callInterval) clearInterval(callInterval);
+  callInterval = setInterval(() => {
+    callSeconds++;
+    const m = String(Math.floor(callSeconds/60)).padStart(2,'0');
+    const s = String(callSeconds%60).padStart(2,'0');
+    document.getElementById('call-timer').textContent = `${m}:${s}`;
+  }, 1000);
+  showToast('🎙', '<strong>Intercom open</strong> — Room 104', 'info');
+}
+function endCall() {
+  document.getElementById('intercom-bar').classList.remove('active');
+  if (callInterval) clearInterval(callInterval);
+  showToast('✓', '<strong>Call ended</strong> — Session logged', 'info');
+}
+
+// ── Toast system ───────────────────────────────────────────────────
+function showToast(icon, msg, type='info') {
+  const stack = document.getElementById('toast-stack');
+  const el = document.createElement('div');
+  el.className = `toast${type==='alert' ? ' alert' : ''}`;
+  el.innerHTML = `<span class="toast-icon">${icon}</span><span>${msg}</span>`;
+  stack.prepend(el);
+  setTimeout(() => { el.style.opacity='0'; el.style.transition='opacity 0.4s'; setTimeout(()=>el.remove(),400); }, 3500);
+}
+
+// ── Alert counter sim ──────────────────────────────────────────────
+setTimeout(() => showToast('🚨', '<strong>Fall detected</strong> — Fatima, Room 104', 'alert'), 3000);
+setTimeout(() => showToast('⚠️', '<strong>HR elevated</strong> — Mariam, Room 301 · 118 BPM', 'info'), 6500);
+
+// ── Alert elapsed timer ────────────────────────────────────────────
+let t1 = 47, t2 = 133;
+setInterval(() => {
+  t1++; t2++;
+  const fmt = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  const els = document.querySelectorAll('.alert-elapsed');
+  if (els[0]) els[0].textContent = fmt(t1);
+  if (els[1]) els[1].textContent = fmt(t2);
+}, 1000);
+
+// ── Vital drift sim ────────────────────────────────────────────────
+setInterval(() => {
+  PATIENTS.filter(p => p.status !== 'offline').forEach(p => {
+    if (p.hr !== null) {
+      p.hr = Math.max(50, Math.min(140, p.hr + (Math.random() > 0.5 ? 1 : -1)));
+      if (p.hrHistory.length > 9) p.hrHistory.shift();
+      p.hrHistory.push(p.hr);
+    }
+    if (p.rr !== null) {
+      p.rr = Math.max(6, Math.min(30, p.rr + (Math.random() > 0.5 ? 1 : -1)));
+    }
+  });
+  if (currentView === 'roster') renderRoster(currentFilter);
+}, 2500);
+
+// Pill interaction
+document.querySelectorAll('.filter-pills .pill').forEach(p => {
+  p.addEventListener('click', function() {
+    document.querySelectorAll('.filter-pills .pill').forEach(x => x.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+
+// ── Init ───────────────────────────────────────────────────────────
+renderRoster();
+</script>
+</body>
+</html>

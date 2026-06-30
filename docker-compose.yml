@@ -1,0 +1,242 @@
+networks:
+  anees-net:
+    driver: bridge
+    name: anees-net
+
+volumes:
+  postgres_data:
+  redis_data:
+  loki_data:
+  jaeger_data:
+  prometheus_data:
+  grafana_data:
+
+services:
+  # ─── Reverse Proxy ────────────────────────────────────────────────────────────
+  traefik:
+    image: traefik:v3.1
+    container_name: anees-traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"       # HTTP entrypoint
+      - "8888:8080"   # Traefik dashboard
+    volumes:
+      - ./infra/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./infra/traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+    networks:
+      - anees-net
+
+  # ─── Databases ────────────────────────────────────────────────────────────────
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    container_name: anees-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-anees}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-anees_dev_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-anees}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - anees-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-anees}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: anees-redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-anees_redis_dev}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - anees-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD:-anees_redis_dev}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── IoT Broker ───────────────────────────────────────────────────────────────
+  hivemq:
+    image: hivemq/hivemq-ce:latest
+    container_name: anees-hivemq
+    restart: unless-stopped
+    ports:
+      - "1883:1883"   # MQTT (dev — TLS in prod)
+    networks:
+      - anees-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ─── Backend Services ─────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: anees-backend
+    restart: unless-stopped
+    env_file: ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-anees}:${POSTGRES_PASSWORD:-anees_dev_secret}@postgres:5432/${POSTGRES_DB:-anees}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-anees_redis_dev}@redis:6379
+      MQTT_BROKER_URL: mqtt://hivemq:1883
+      NODE_ENV: development
+    ports:
+      - "3000:3000"   # exposed for physical mobile devices (use host IP, not localhost)
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/prisma:/app/prisma
+    networks:
+      - anees-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      hivemq:
+        condition: service_started
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      target: development
+    container_name: anees-web
+    restart: unless-stopped
+    env_file: ./web/.env
+    volumes:
+      - ./web/src:/app/src
+    networks:
+      - anees-net
+    depends_on:
+      - backend
+
+  dsp-service:
+    build:
+      context: ./dsp-service
+      dockerfile: Dockerfile
+      target: development
+    container_name: anees-dsp
+    restart: unless-stopped
+    env_file: ./dsp-service/.env
+    environment:
+      REDIS_URL: redis://:${REDIS_PASSWORD:-anees_redis_dev}@redis:6379
+    volumes:
+      - ./dsp-service/app:/app/app
+    networks:
+      - anees-net
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # ─── Voice Intercom ───────────────────────────────────────────────────────────
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: anees-livekit
+    restart: unless-stopped
+    command: --dev --bind 0.0.0.0
+    ports:
+      - "7881:7881"     # RTC TCP
+      - "7882:7882/udp" # RTC UDP
+    networks:
+      - anees-net
+
+  coturn:
+    image: coturn/coturn:latest
+    container_name: anees-coturn
+    restart: unless-stopped
+    network_mode: host
+    command: >
+      -n
+      --log-file=stdout
+      --lt-cred-mech
+      --fingerprint
+      --no-multicast-peers
+      --no-cli
+      --realm=anees.local
+      --user=${TURN_USER:-anees}:${TURN_PASSWORD:-turn_dev_secret}
+
+  # ─── Observability ────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: anees-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./infra/observability/prometheus/rules:/etc/prometheus/rules
+      - prometheus_data:/prometheus
+    networks:
+      - anees-net
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+      - '--web.enable-remote-write-receiver'
+
+  loki:
+    image: grafana/loki:latest
+    container_name: anees-loki
+    restart: unless-stopped
+    volumes:
+      - ./infra/observability/loki-config.yml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+    ports:
+      - "3100:3100"   # kept for promtail direct push
+    networks:
+      - anees-net
+    command: -config.file=/etc/loki/local-config.yaml
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: anees-promtail
+    restart: unless-stopped
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./infra/observability/promtail-config.yml:/etc/promtail/config.yml
+    networks:
+      - anees-net
+    command: -config.file=/etc/promtail/config.yml
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: anees-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_SERVER_ROOT_URL: http://grafana.localhost
+      GF_SERVER_SERVE_FROM_SUB_PATH: 'false'
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - anees-net
+    depends_on:
+      - prometheus
+      - loki
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: anees-jaeger
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: 'true'
+    ports:
+      - "4317:4317"   # OTLP gRPC (direct — used by services)
+      - "4318:4318"   # OTLP HTTP (direct — used by services)
+    volumes:
+      - jaeger_data:/badger
+    networks:
+      - anees-net

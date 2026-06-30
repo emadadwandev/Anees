@@ -1,0 +1,83 @@
+name: Deploy — Production
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+env:
+  OCI_REGISTRY: ${{ secrets.OCI_REGISTRY }}
+  IMAGE_TAG: ${{ github.ref_name }}
+
+jobs:
+  build-and-push:
+    name: Build & Push Release Images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to OCI Container Registry
+        run: echo "${{ secrets.OCI_REGISTRY_TOKEN }}" | docker login ${{ secrets.OCI_REGISTRY }} -u "${{ secrets.OCI_REGISTRY_USER }}" --password-stdin
+
+      - name: Build and push all images (tagged release)
+        run: |
+          for SERVICE in backend dsp-service web; do
+            TARGET=$([ "$SERVICE" = "web" ] && echo "" || echo "--target production")
+            docker build ./$SERVICE $TARGET \
+              -t $OCI_REGISTRY/anees-${SERVICE//-service/}:$IMAGE_TAG \
+              -t $OCI_REGISTRY/anees-${SERVICE//-service/}:stable
+            docker push $OCI_REGISTRY/anees-${SERVICE//-service/}:$IMAGE_TAG
+            docker push $OCI_REGISTRY/anees-${SERVICE//-service/}:stable
+          done
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    environment: production  # requires manual approval in GitHub Environments settings
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.OCI_PROD_IP }}
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY_PROD }}
+          script: |
+            cd /opt/anees
+            echo "${{ secrets.OCI_REGISTRY_TOKEN }}" | docker login ${{ secrets.OCI_REGISTRY }} -u "${{ secrets.OCI_REGISTRY_USER }}" --password-stdin
+            export IMAGE_TAG=${{ github.ref_name }}
+            docker compose pull
+            docker compose up -d --no-build
+            docker compose exec -T backend npx prisma migrate deploy
+            docker image prune -f
+
+      - name: Post-deploy smoke test
+        run: |
+          sleep 15
+          curl -f https://${{ secrets.PROD_DOMAIN }}/v1/health || exit 1
+          curl -f https://${{ secrets.PROD_DOMAIN }}/v1/metrics | grep -q 'nodejs_version_info' || exit 1
+          echo "Production smoke tests passed"
+
+      - name: Notify Slack — Success
+        if: success()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "🚀 Production deploy succeeded — release `${{ github.ref_name }}` deployed by ${{ github.actor }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK }}
+
+      - name: Notify Slack — Failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "🔥 Production deploy FAILED — release `${{ github.ref_name }}` — <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_DEPLOY_WEBHOOK }}

@@ -1,0 +1,18 @@
+{
+  "name": "anees-edge-gateway",
+  "version": "1.0.0",
+  "description": "mmWave device edge process — LiveKit auto-answer and audio I/O routing",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "start:dev": "node --watch index.js"
+  },
+  "dependencies": {
+    "livekit-client": "^2.1.0",
+    "mqtt": "^5.5.0",
+    "dotenv": "^16.4.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

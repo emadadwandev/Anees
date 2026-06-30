@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-inter: 'Inter', sans-serif;
+  }
+
+  body {
+    @apply bg-surface text-gray-900 font-sans antialiased;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+}
+
+/* ── Admin dashboard dark theme ───────────────────────────────────────── */
+.adm-shell {
+  --adm-bg:          #080d1a;
+  --adm-sidebar:     #050a15;
+  --adm-card:        rgba(255, 255, 255, 0.036);
+  --adm-card-hover:  rgba(255, 255, 255, 0.06);
+  --adm-border:      rgba(255, 255, 255, 0.07);
+  --adm-border-hi:   rgba(255, 255, 255, 0.14);
+  --adm-t1:          #eef2ff;
+  --adm-t2:          rgba(200, 210, 240, 0.65);
+  --adm-t3:          rgba(200, 210, 240, 0.38);
+  --adm-blue:        #1a73e8;
+  --adm-blue-dim:    rgba(26, 115, 232, 0.15);
+  --adm-green:       #3fcf5c;
+  --adm-green-dim:   rgba(63, 207, 92, 0.14);
+  --adm-amber:       #ff9800;
+  --adm-amber-dim:   rgba(255, 152, 0, 0.14);
+  --adm-red:         #ff4444;
+  --adm-red-dim:     rgba(255, 68, 68, 0.14);
+  --adm-slate:       #6b7fa3;
+  --adm-slate-dim:   rgba(107, 127, 163, 0.14);
+
+  background: var(--adm-bg);
+  color: var(--adm-t1);
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.adm-shell *::-webkit-scrollbar            { width: 4px; }
+.adm-shell *::-webkit-scrollbar-track      { background: transparent; }
+.adm-shell *::-webkit-scrollbar-thumb      { background: rgba(255,255,255,0.1); border-radius: 4px; }
+
+/* Glassmorphism card */
+.adm-card {
+  background: var(--adm-card);
+  border: 1px solid var(--adm-border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 14px;
+  transition: background 0.15s, border-color 0.15s;
+}
+.adm-card:hover { background: var(--adm-card-hover); }
+
+/* Status badges */
+.adm-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 8px; border-radius: 20px;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.3px; white-space: nowrap;
+}
+.adm-badge-green   { background: var(--adm-green-dim); color: var(--adm-green); }
+.adm-badge-red     { background: var(--adm-red-dim);   color: #ff6b6b; }
+.adm-badge-amber   { background: var(--adm-amber-dim); color: var(--adm-amber); }
+.adm-badge-slate   { background: var(--adm-slate-dim); color: var(--adm-slate); }
+.adm-badge-blue    { background: var(--adm-blue-dim);  color: #60a5fa; }
+
+/* Alert card pulsing border (critical) */
+.adm-alert-critical {
+  border-color: rgba(255, 68, 68, 0.3);
+  background: rgba(255, 68, 68, 0.04);
+  animation: adm-border-pulse 2.5s ease-in-out infinite;
+}
+@keyframes adm-border-pulse {
+  0%,100% { border-color: rgba(255,68,68,0.3); background: rgba(255,68,68,0.04); }
+  50%     { border-color: rgba(255,68,68,0.55); background: rgba(255,68,68,0.07); }
+}
+
+/* Live indicator */
+.adm-live-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--adm-green);
+  animation: adm-live 1.8s ease-in-out infinite;
+}
+@keyframes adm-live {
+  0%,100% { opacity: 1; }
+  50%     { opacity: 0.4; }
+}
+
+/* Alert badge pulse */
+.adm-badge-red { animation: adm-badge-pulse 2s ease-in-out infinite; }
+@keyframes adm-badge-pulse {
+  0%,100% { opacity: 1; }
+  50%     { opacity: 0.6; }
+}

@@ -1,0 +1,82 @@
+name: anees
+description: Ambient healthcare monitoring - Anees platform
+version: 1.0.0+1
+publish_to: none
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Network & realtime
+  dio: ^5.4.0
+  socket_io_client: ^2.0.3+1
+
+  # Auth & storage
+  flutter_secure_storage: ^9.0.0
+  drift: ^2.18.0
+  sqlite3_flutter_libs: ^0.5.0
+  path_provider: ^2.1.0
+  path: ^1.9.0
+
+  # State management
+  flutter_riverpod: ^2.5.0
+  riverpod_annotation: ^2.3.0
+
+  # Navigation
+  go_router: ^14.0.0
+
+  # UI
+  fl_chart: ^0.68.0
+
+  # WebRTC / LiveKit
+  livekit_client: ^2.1.0
+
+  # Push notifications
+  firebase_core: ^3.0.0
+  firebase_messaging: ^15.0.0
+  flutter_local_notifications: ^17.0.0
+
+  # Localization
+  flutter_localizations:
+    sdk: flutter
+  intl: ^0.20.2
+
+  # TTS for fall alert voice prompt
+  flutter_tts: ^4.0.0
+
+  # BLE & hardware discovery
+  flutter_blue_plus: ^1.31.15
+  mobile_scanner: ^6.0.0
+
+  # Utilities
+  freezed_annotation: ^2.4.0
+  json_annotation: ^4.9.0
+  equatable: ^2.0.5
+  logger: ^2.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.0
+  freezed: ^2.5.0
+  json_serializable: ^6.8.0
+  riverpod_generator: ^2.4.0
+  drift_dev: ^2.18.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/sounds/
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700

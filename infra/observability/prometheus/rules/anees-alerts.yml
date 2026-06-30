@@ -1,0 +1,80 @@
+groups:
+  - name: anees.iot
+    interval: 30s
+    rules:
+      - alert: DSPErrorRateHigh
+        expr: rate(dsp_validation_errors_total[5m]) > 0.01
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DSP validation error rate > 1%"
+          description: "DSP service is rejecting more than 1% of payloads."
+
+      - alert: MQTTForwardFailures
+        expr: increase(mqtt_forward_failures_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MQTT→DSP forward failures detected"
+          description: "BullMQ retries exhausted for MQTT forward jobs."
+
+  - name: anees.alerts
+    interval: 30s
+    rules:
+      - alert: AlertDispatchLatencyHigh
+        expr: histogram_quantile(0.95, rate(alert_dispatch_duration_seconds_bucket[5m])) > 15
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Alert dispatch p95 latency > 15 seconds"
+          description: "Fall alerts are taking too long to dispatch to caregivers."
+
+      - alert: PushNotificationFailureRateHigh
+        expr: |
+          rate(push_notifications_sent_total{status="failure"}[5m])
+          / rate(push_notifications_sent_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Push notification failure rate > 5%"
+          description: "More than 5% of push notifications are failing to deliver."
+
+  - name: anees.devices
+    interval: 60s
+    rules:
+      - alert: DeviceOfflineTooLong
+        expr: device_offline_duration_seconds > 1800
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Device offline > 30 minutes"
+          description: "Device {{ $labels.device_id }} has been offline for over 30 minutes."
+
+  - name: anees.performance
+    interval: 30s
+    rules:
+      - alert: APILatencyHigh
+        expr: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="anees-backend"}[5m])) by (le)) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API p95 latency > 2 seconds"
+          description: "NestJS API is responding slowly."
+
+      - alert: APIErrorRateHigh
+        expr: |
+          sum(rate(http_requests_total{job="anees-backend", status_code=~"5.."}[5m]))
+          / sum(rate(http_requests_total{job="anees-backend"}[5m])) > 0.01
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API 5xx error rate > 1%"
+          description: "NestJS is returning server errors."
