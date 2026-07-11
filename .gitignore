@@ -61,6 +61,7 @@ infra/*.tfvars
 .DS_Store
 .idea/
 .vscode/
+.worktrees/
 *.swp
 *.swo
 Thumbs.db
