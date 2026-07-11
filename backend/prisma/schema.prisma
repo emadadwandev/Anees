@@ -55,6 +55,11 @@ enum DeviceType {
   sleep_sensor
 }
 
+enum DeviceTransport {
+  mqtt
+  aerosense_tcp
+}
+
 model User {
   id           String  @id @default(uuid())
   email        String  @unique
@@ -72,8 +77,8 @@ model User {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   devices          Device[]
-  caregiverLinks   CaregiverLink[]  @relation("CaregiverLinks")
-  patientLinks     CaregiverLink[]  @relation("PatientLinks")
+  caregiverLinks   CaregiverLink[]   @relation("CaregiverLinks")
+  patientLinks     CaregiverLink[]   @relation("PatientLinks")
   alertEvents      AlertEvent[]
   pushTokens       UserPushToken[]
   threshold        PatientThreshold?
@@ -94,6 +99,10 @@ model Device {
   signalQuality   Float?          @map("signal_quality")
   occlusionStatus OcclusionStatus @default(none) @map("occlusion_status")
   deviceType      DeviceType      @default(fall_sensor) @map("device_type")
+  transport       DeviceTransport @default(mqtt)
+  vendor          String?
+  externalId      String?         @unique @map("external_id")
+  capabilities    Json?
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

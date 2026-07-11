@@ -1,0 +1,12 @@
+-- CreateEnum
+CREATE TYPE "DeviceTransport" AS ENUM ('mqtt', 'aerosense_tcp');
+
+-- AlterTable
+ALTER TABLE "devices"
+  ADD COLUMN "transport" "DeviceTransport" NOT NULL DEFAULT 'mqtt',
+  ADD COLUMN "vendor" TEXT,
+  ADD COLUMN "external_id" TEXT,
+  ADD COLUMN "capabilities" JSONB;
+
+-- CreateIndex
+CREATE UNIQUE INDEX "devices_external_id_key" ON "devices"("external_id");

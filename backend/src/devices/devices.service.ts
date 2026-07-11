@@ -38,6 +38,26 @@ export class DevicesService {
     return device;
   }
 
+  async resolveAeroSenseDevice(externalId: string) {
+    const normalized = externalId.toUpperCase();
+    const cacheKey = `device:aerosense:${normalized}`;
+    const cached = await this.redis.get(cacheKey);
+    if (cached) {
+      try {
+        const device = JSON.parse(cached);
+        if (device.transport === 'aerosense_tcp') return device;
+      } catch {
+        // Ignore malformed cache data and resolve from the source of truth.
+      }
+    }
+
+    const device = await this.prisma.device.findUnique({ where: { externalId: normalized } });
+    if (!device || device.transport !== 'aerosense_tcp') return null;
+
+    await this.redis.set(cacheKey, JSON.stringify(device), 'EX', DEVICE_CACHE_TTL);
+    return device;
+  }
+
   async register(serial: string, userId: string, roomLabel: string, firmwareVersion: string) {
     return this.prisma.device.create({
       data: { serial, userId, roomLabel, firmwareVersion },
