@@ -1,9 +1,20 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 
 const DEVICE_CACHE_TTL = 3600;
+
+interface RegisterAeroSenseDeviceInput {
+  serial: string;
+  userId: string;
+  roomLabel: string;
+  firmwareVersion: string;
+  externalId: string;
+  vendor: string;
+  capabilities?: Prisma.InputJsonValue;
+}
 
 @Injectable()
 export class DevicesService {
@@ -61,6 +72,17 @@ export class DevicesService {
   async register(serial: string, userId: string, roomLabel: string, firmwareVersion: string) {
     return this.prisma.device.create({
       data: { serial, userId, roomLabel, firmwareVersion },
+    });
+  }
+
+  async registerAeroSenseDevice(input: RegisterAeroSenseDeviceInput) {
+    const { externalId, ...device } = input;
+    return this.prisma.device.create({
+      data: {
+        ...device,
+        externalId: externalId.toUpperCase(),
+        transport: 'aerosense_tcp',
+      },
     });
   }
 
