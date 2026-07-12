@@ -122,6 +122,11 @@ export class AeroSenseTcpServerService implements OnModuleInit, OnModuleDestroy 
       } else if (event?.kind === 'fall_eliminated') {
         await this.events.handleAssureFallElimination(session);
         socket.write(encodeStatusResponse(frame, 1));
+      } else if (event?.kind === 'presence') {
+        await this.events.handleAssurePresence(session, event, Date.now());
+        socket.write(encodeStatusResponse(frame, 1));
+      } else if (event?.kind === 'position') {
+        await this.events.handleAssurePosition(session, event, Date.now());
       }
       return;
     }

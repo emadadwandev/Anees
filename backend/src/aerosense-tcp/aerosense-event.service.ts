@@ -139,4 +139,55 @@ export class AeroSenseEventService {
       this.redis.publish(`alerts:patient:${session.patientId}`, cancelPayload),
     ]);
   }
+
+  async handleAssurePresence(
+    session: AeroSenseSession,
+    presence: { occupied: boolean; rangeM: number; energy: number },
+    timestamp: number,
+  ): Promise<void> {
+    const payload = {
+      deviceId: session.deviceId,
+      patientId: session.patientId,
+      timestamp,
+      someoneExists: presence.occupied,
+      rangeM: presence.rangeM,
+      energy: presence.energy,
+      source: 'aerosense_assure',
+    };
+    await Promise.all([
+      this.redis.publish('vitals:presence', JSON.stringify(payload)),
+      this.redis.set(
+        `presence:${session.patientId}`,
+        JSON.stringify({
+          someoneExists: presence.occupied,
+          rangeM: presence.rangeM,
+          energy: presence.energy,
+          source: 'aerosense_assure',
+          updatedAt: new Date(timestamp).toISOString(),
+        }),
+        'EX',
+        120,
+      ),
+    ]);
+  }
+
+  async handleAssurePosition(
+    session: AeroSenseSession,
+    position: {
+      xM: number;
+      yM: number;
+      zM: number;
+      motion?: { xM: number; yM: number; zM: number; snrDb: number };
+      targetCount?: number;
+    },
+    timestamp: number,
+  ): Promise<void> {
+    await this.prisma.$executeRaw`
+      INSERT INTO motion_events (time, device_id, patient_id, event_type, coordinates)
+      VALUES (
+        to_timestamp(${timestamp} / 1000.0), ${session.deviceId}::uuid, ${session.patientId}::uuid,
+        ${'assure.position'}, ${JSON.stringify(position)}::jsonb
+      )
+    `;
+  }
 }

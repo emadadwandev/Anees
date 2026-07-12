@@ -44,6 +44,38 @@ function assureFallFrame(): Buffer {
   return frame;
 }
 
+function assurePresenceFrame(): Buffer {
+  const frame = Buffer.alloc(228);
+  frame.writeUInt8(0x12, 0);
+  frame.writeUInt8(0x01, 1);
+  frame.writeUInt8(0x01, 2);
+  frame.writeUInt8(0x01, 3);
+  frame.writeUInt32BE(45, 4);
+  frame.writeUInt16BE(10_000, 8);
+  frame.writeUInt32BE(214, 10);
+  frame.writeUInt16BE(0x0018, 14);
+  frame.writeUInt32BE(1, 16);
+  frame.writeFloatBE(4.5, 20);
+  frame.writeFloatBE(100, 24);
+  return frame;
+}
+
+function assurePositionFrame(): Buffer {
+  const frame = Buffer.alloc(28);
+  frame.writeUInt8(0x12, 0);
+  frame.writeUInt8(0x01, 1);
+  frame.writeUInt8(0x02, 2);
+  frame.writeUInt8(0x01, 3);
+  frame.writeUInt32BE(46, 4);
+  frame.writeUInt16BE(10_000, 8);
+  frame.writeUInt32BE(14, 10);
+  frame.writeUInt16BE(0x001c, 14);
+  frame.writeFloatBE(1.5, 16);
+  frame.writeFloatBE(2, 20);
+  frame.writeFloatBE(0.8, 24);
+  return frame;
+}
+
 const requiredConfig = {
   DATABASE_URL: 'postgresql://anees:anees_dev_secret@localhost:5432/anees',
   REDIS_URL: 'redis://:anees_redis_dev@localhost:6379',
@@ -228,6 +260,98 @@ describe('AeroSense TCP listener configuration', () => {
       { kind: 'fall', xM: 3, yM: 5 },
       expect.any(Number),
     );
+
+    socket.end();
+    await service.stop();
+  });
+
+  it('acknowledges an Assure presence report after safe presence handling', async () => {
+    const sensorSession = {
+      deviceId: '7b1c8f21-bd66-4a81-8b9f-620e5fed2c76',
+      patientId: 'ce54a4f9-50ad-4527-8652-1edc5daec281',
+    };
+    const sessions = { register: jest.fn(), unregister: jest.fn(), getSession: jest.fn().mockReturnValue(sensorSession) };
+    const events = {
+      handleAssurePresence: jest.fn<(session: object, presence: object, timestamp: number) => Promise<void>>().mockResolvedValue(),
+      handleWavveVital: jest.fn(),
+    };
+    const config = {
+      get: (key: string) => ({
+        TCP_BIND_HOST: '127.0.0.1',
+        TCP_PORT: 0,
+        TCP_IDLE_TIMEOUT_MS: 30_000,
+      }[key]),
+    };
+    const service = new AeroSenseTcpServerService(config as never, sessions as never, events as never);
+    const port = await service.start();
+    const socket = createConnection({ host: '127.0.0.1', port });
+    const response = new Promise<Buffer>((resolve, reject) => {
+      socket.once('data', resolve);
+      socket.once('error', reject);
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      socket.once('connect', resolve);
+      socket.once('error', reject);
+    });
+    socket.write(assurePresenceFrame());
+
+    expect(decodeFrame(await response)).toMatchObject({ functionCode: 0x0018, requestId: 45, data: Buffer.from([0, 0, 0, 1]) });
+    expect(events.handleAssurePresence).toHaveBeenCalledWith(
+      sensorSession,
+      { kind: 'presence', occupied: true, rangeM: 4.5, energy: 100 },
+      expect.any(Number),
+    );
+
+    socket.end();
+    await service.stop();
+  });
+
+  it('routes one-way Assure position frames without an acknowledgement', async () => {
+    const sensorSession = {
+      deviceId: '7b1c8f21-bd66-4a81-8b9f-620e5fed2c76',
+      patientId: 'ce54a4f9-50ad-4527-8652-1edc5daec281',
+    };
+    const sessions = { register: jest.fn(), unregister: jest.fn(), getSession: jest.fn().mockReturnValue(sensorSession) };
+    let resolveHandled!: () => void;
+    const handled = new Promise<void>((resolve) => {
+      resolveHandled = resolve;
+    });
+    const events = {
+      handleAssurePosition: jest
+        .fn<(session: object, position: object, timestamp: number) => Promise<void>>()
+        .mockImplementation(async () => resolveHandled()),
+      handleWavveVital: jest.fn(),
+    };
+    const config = {
+      get: (key: string) => ({
+        TCP_BIND_HOST: '127.0.0.1',
+        TCP_PORT: 0,
+        TCP_IDLE_TIMEOUT_MS: 30_000,
+      }[key]),
+    };
+    const service = new AeroSenseTcpServerService(config as never, sessions as never, events as never);
+    const port = await service.start();
+    const socket = createConnection({ host: '127.0.0.1', port });
+    let receivedResponse = false;
+    socket.on('data', () => {
+      receivedResponse = true;
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      socket.once('connect', resolve);
+      socket.once('error', reject);
+    });
+    socket.write(assurePositionFrame());
+    await handled;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    expect(events.handleAssurePosition).toHaveBeenCalledWith(
+      sensorSession,
+      expect.objectContaining({ kind: 'position', xM: 1.5, yM: 2, zM: expect.closeTo(0.8, 5) }),
+      expect.any(Number),
+    );
+    expect(receivedResponse).toBe(false);
 
     socket.end();
     await service.stop();
