@@ -1,5 +1,7 @@
+import { createConnection } from 'net';
 import { describe, expect, it } from '@jest/globals';
 import { configSchema } from '../config/config.schema';
+import { AeroSenseTcpServerService } from './aerosense-tcp-server.service';
 
 const requiredConfig = {
   DATABASE_URL: 'postgresql://anees:anees_dev_secret@localhost:5432/anees',
@@ -27,5 +29,27 @@ describe('AeroSense TCP listener configuration', () => {
 
   it('rejects a privileged TCP port', () => {
     expect(() => configSchema.parse({ ...requiredConfig, TCP_PORT: 443 })).toThrow();
+  });
+
+  it('accepts a local TCP connection and stops cleanly', async () => {
+    const config = {
+      get: (key: string) => ({
+        TCP_BIND_HOST: '127.0.0.1',
+        TCP_PORT: 0,
+        TCP_IDLE_TIMEOUT_MS: 30_000,
+      }[key]),
+    };
+    const service = new AeroSenseTcpServerService(config as never);
+    const port = await service.start();
+    const socket = createConnection({ host: '127.0.0.1', port });
+
+    await new Promise<void>((resolve, reject) => {
+      socket.once('connect', resolve);
+      socket.once('error', reject);
+    });
+
+    socket.end();
+    await service.stop();
+    expect(service.isListening()).toBe(false);
   });
 });

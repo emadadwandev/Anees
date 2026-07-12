@@ -25,6 +25,7 @@ import { CaregiverGatewayModule } from './gateways/caregiver-gateway.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { AdminModule } from './admin/admin.module';
 import { CaregiverModule } from './caregiver/caregiver.module';
+import { AeroSenseTcpModule } from './aerosense-tcp/aerosense-tcp.module';
 
 @Module({
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
@@ -100,6 +101,7 @@ import { CaregiverModule } from './caregiver/caregiver.module';
     CaregiverGatewayModule,
     AdminModule,
     CaregiverModule,
+    AeroSenseTcpModule,
   ],
 })
 export class AppModule {}
