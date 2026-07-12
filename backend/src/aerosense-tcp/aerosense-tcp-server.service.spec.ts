@@ -1,6 +1,7 @@
 import { createConnection } from 'net';
-import { describe, expect, it } from '@jest/globals';
+import { describe, expect, it, jest } from '@jest/globals';
 import { configSchema } from '../config/config.schema';
+import { decodeFrame } from './protocol/frame-codec';
 import { AeroSenseTcpServerService } from './aerosense-tcp-server.service';
 
 const requiredConfig = {
@@ -39,7 +40,7 @@ describe('AeroSense TCP listener configuration', () => {
         TCP_IDLE_TIMEOUT_MS: 30_000,
       }[key]),
     };
-    const service = new AeroSenseTcpServerService(config as never);
+    const service = new AeroSenseTcpServerService(config as never, { register: jest.fn(), unregister: jest.fn() } as never);
     const port = await service.start();
     const socket = createConnection({ host: '127.0.0.1', port });
 
@@ -51,5 +52,48 @@ describe('AeroSense TCP listener configuration', () => {
     socket.end();
     await service.stop();
     expect(service.isListening()).toBe(false);
+  });
+
+  it('acknowledges a registered sensor frame using the same request ID', async () => {
+    const session = { register: jest.fn<() => Promise<boolean>>().mockResolvedValue(true), unregister: jest.fn() };
+    const config = {
+      get: (key: string) => ({
+        TCP_BIND_HOST: '127.0.0.1',
+        TCP_PORT: 0,
+        TCP_IDLE_TIMEOUT_MS: 30_000,
+      }[key]),
+    };
+    const service = new AeroSenseTcpServerService(config as never, session as never);
+    const port = await service.start();
+    const socket = createConnection({ host: '127.0.0.1', port });
+
+    const response = new Promise<Buffer>((resolve, reject) => {
+      socket.once('data', resolve);
+      socket.once('error', reject);
+    });
+    await new Promise<void>((resolve, reject) => {
+      socket.once('connect', resolve);
+      socket.once('error', reject);
+    });
+    socket.write(Buffer.from([
+      0x13, 0x01, 0x01, 0x01,
+      0x00, 0x00, 0x00, 0x2a,
+      0x00, 0x0a,
+      0x00, 0x00, 0x00, 0x02,
+      0x00, 0x01,
+    ]));
+
+    expect(decodeFrame(await response)).toMatchObject({
+      protocol: 'wavve',
+      type: 0,
+      command: 2,
+      requestId: 42,
+      functionCode: 1,
+      data: Buffer.from([0, 0, 0, 1]),
+    });
+    expect(session.register).toHaveBeenCalledTimes(1);
+
+    socket.end();
+    await service.stop();
   });
 });

@@ -2,6 +2,8 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import { AddressInfo, createServer, Server, Socket } from 'net';
 import { Config } from '../config/config.schema';
+import { decodeFrame, encodeStatusResponse, extractFrames } from './protocol/frame-codec';
+import { AeroSenseSessionService } from './aerosense-session.service';
 
 @Injectable()
 export class AeroSenseTcpServerService implements OnModuleInit, OnModuleDestroy {
@@ -9,7 +11,10 @@ export class AeroSenseTcpServerService implements OnModuleInit, OnModuleDestroy 
   private readonly sockets = new Set<Socket>();
   private server?: Server;
 
-  constructor(private readonly config: ConfigService<Config>) {}
+  constructor(
+    private readonly config: ConfigService<Config>,
+    private readonly sessions: AeroSenseSessionService,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     await this.start();
@@ -64,7 +69,31 @@ export class AeroSenseTcpServerService implements OnModuleInit, OnModuleDestroy 
     this.sockets.add(socket);
     socket.setTimeout(this.config.get('TCP_IDLE_TIMEOUT_MS')!);
     socket.once('timeout', () => socket.destroy());
-    socket.once('close', () => this.sockets.delete(socket));
+    socket.once('close', () => {
+      this.sockets.delete(socket);
+      this.sessions.unregister(socket);
+    });
     socket.on('error', (error) => this.logger.warn(error, 'AeroSense TCP socket error'));
+
+    let buffer: Buffer<ArrayBufferLike> = Buffer.alloc(0);
+    socket.on('data', (chunk: Buffer) => {
+      buffer = Buffer.concat([buffer, chunk]);
+      try {
+        const extracted = extractFrames(buffer);
+        buffer = extracted.remainder;
+        for (const wire of extracted.frames) void this.handleFrame(socket, wire);
+      } catch (error) {
+        this.logger.warn(error, 'Rejected invalid AeroSense TCP frame');
+        socket.destroy();
+      }
+    });
+  }
+
+  private async handleFrame(socket: Socket, wire: Buffer): Promise<void> {
+    const frame = decodeFrame(wire);
+    if (frame.functionCode !== 0x0001) return;
+
+    const registered = await this.sessions.register(socket, frame);
+    socket.write(encodeStatusResponse(frame, registered ? 1 : 0));
   }
 }
