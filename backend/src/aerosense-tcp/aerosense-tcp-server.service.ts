@@ -150,6 +150,8 @@ export class AeroSenseTcpServerService implements OnModuleInit, OnModuleDestroy 
     const alert = decodeWavveAlertEvent(frame);
     if (alert && isWavveClinicalAlertKind(alert.kind)) {
       await this.events.handleWavveClinicalAlert(session, alert.kind, Date.now());
+    } else if (alert) {
+      await this.events.handleWavveObservation(session, alert, Date.now());
     }
   }
 }
