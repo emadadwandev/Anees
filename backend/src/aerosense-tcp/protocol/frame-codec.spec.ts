@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import {
   decodeFrame,
+  encodeCommandRequest,
   encodeStatusResponse,
   extractFrames,
 } from './frame-codec';
@@ -20,6 +21,18 @@ function wavveVitalFrame(): Buffer {
 }
 
 describe('AeroSense TCP frame codec', () => {
+  it('encodes a Wavve configuration command with its request ID and payload', () => {
+    const wire = encodeCommandRequest({
+      protocol: 'wavve', requestId: 77, timeoutOrStatus: 10_000,
+      functionCode: 0x03e9, data: Buffer.from([0, 0, 0, 60]),
+    });
+
+    expect(decodeFrame(wire)).toMatchObject({
+      protocol: 'wavve', type: 1, command: 1, requestId: 77, timeoutOrStatus: 10_000,
+      functionCode: 0x03e9, data: Buffer.from([0, 0, 0, 60]),
+    });
+  });
+
   it('reassembles and acknowledges a split Wavve frame', () => {
     const wire = wavveVitalFrame();
     const first = extractFrames(wire.subarray(0, 11));

@@ -87,3 +87,18 @@ export function encodeStatusResponse(frame: AeroSenseFrame, status: 0 | 1): Buff
   response.writeUInt32BE(status, 16);
   return response;
 }
+
+export function encodeCommandRequest(frame: Pick<AeroSenseFrame, 'protocol' | 'requestId' | 'timeoutOrStatus' | 'functionCode' | 'data'>): Buffer {
+  const contentLength = 2 + frame.data.length;
+  const request = Buffer.alloc(AEROSENSE_HEADER_BYTES + contentLength);
+  request.writeUInt8(frame.protocol === 'assure' ? 0x12 : 0x13, 0);
+  request.writeUInt8(0x01, 1);
+  request.writeUInt8(0x01, 2);
+  request.writeUInt8(0x01, 3);
+  request.writeUInt32BE(frame.requestId, 4);
+  request.writeUInt16BE(frame.timeoutOrStatus, 8);
+  request.writeUInt32BE(contentLength, 10);
+  request.writeUInt16BE(frame.functionCode, 14);
+  frame.data.copy(request, 16);
+  return request;
+}
