@@ -4,10 +4,11 @@ import { Socket } from 'net';
 import { DevicesService } from '../devices/devices.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AeroSenseFrame } from './protocol/aerosense-frame';
+import type { AeroSenseSession } from './aerosense-event.service';
 
 @Injectable()
 export class AeroSenseSessionService {
-  private readonly deviceIds = new Map<Socket, string>();
+  private readonly sessions = new Map<Socket, AeroSenseSession>();
 
   constructor(
     private readonly devices: DevicesService,
@@ -15,11 +16,15 @@ export class AeroSenseSessionService {
   ) {}
 
   getDeviceId(socket: Socket): string | undefined {
-    return this.deviceIds.get(socket);
+    return this.sessions.get(socket)?.deviceId;
+  }
+
+  getSession(socket: Socket): AeroSenseSession | undefined {
+    return this.sessions.get(socket);
   }
 
   unregister(socket: Socket): void {
-    this.deviceIds.delete(socket);
+    this.sessions.delete(socket);
   }
 
   async register(socket: Socket, frame: AeroSenseFrame): Promise<boolean> {
@@ -38,7 +43,7 @@ export class AeroSenseSessionService {
         status: DeviceStatus.online,
       },
     });
-    this.deviceIds.set(socket, device.id);
+    this.sessions.set(socket, { deviceId: device.id, patientId: device.userId });
     return true;
   }
 }

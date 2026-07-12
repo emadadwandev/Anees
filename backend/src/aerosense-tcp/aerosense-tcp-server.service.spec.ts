@@ -4,6 +4,31 @@ import { configSchema } from '../config/config.schema';
 import { decodeFrame } from './protocol/frame-codec';
 import { AeroSenseTcpServerService } from './aerosense-tcp-server.service';
 
+function wavveVitalFrame(): Buffer {
+  const payload = Buffer.alloc(36);
+  payload.writeFloatBE(16, 0);
+  payload.writeFloatBE(0.15, 4);
+  payload.writeFloatBE(72, 8);
+  payload.writeFloatBE(-0.42, 12);
+  payload.writeFloatBE(1.5, 16);
+  payload.writeFloatBE(36, 20);
+  payload.writeUInt32BE(2, 24);
+  payload.writeFloatBE(22, 28);
+  payload.writeFloatBE(3.3, 32);
+
+  const frame = Buffer.alloc(52);
+  frame.writeUInt8(0x13, 0);
+  frame.writeUInt8(0x01, 1);
+  frame.writeUInt8(0x01, 2);
+  frame.writeUInt8(0x01, 3);
+  frame.writeUInt32BE(43, 4);
+  frame.writeUInt16BE(10_000, 8);
+  frame.writeUInt32BE(38, 10);
+  frame.writeUInt16BE(0x03e8, 14);
+  payload.copy(frame, 16);
+  return frame;
+}
+
 const requiredConfig = {
   DATABASE_URL: 'postgresql://anees:anees_dev_secret@localhost:5432/anees',
   REDIS_URL: 'redis://:anees_redis_dev@localhost:6379',
@@ -40,7 +65,11 @@ describe('AeroSense TCP listener configuration', () => {
         TCP_IDLE_TIMEOUT_MS: 30_000,
       }[key]),
     };
-    const service = new AeroSenseTcpServerService(config as never, { register: jest.fn(), unregister: jest.fn() } as never);
+    const service = new AeroSenseTcpServerService(
+      config as never,
+      { register: jest.fn(), unregister: jest.fn() } as never,
+      { handleWavveVital: jest.fn() } as never,
+    );
     const port = await service.start();
     const socket = createConnection({ host: '127.0.0.1', port });
 
@@ -63,7 +92,7 @@ describe('AeroSense TCP listener configuration', () => {
         TCP_IDLE_TIMEOUT_MS: 30_000,
       }[key]),
     };
-    const service = new AeroSenseTcpServerService(config as never, session as never);
+    const service = new AeroSenseTcpServerService(config as never, session as never, { handleWavveVital: jest.fn() } as never);
     const port = await service.start();
     const socket = createConnection({ host: '127.0.0.1', port });
 
@@ -92,6 +121,49 @@ describe('AeroSense TCP listener configuration', () => {
       data: Buffer.from([0, 0, 0, 1]),
     });
     expect(session.register).toHaveBeenCalledTimes(1);
+
+    socket.end();
+    await service.stop();
+  });
+
+  it('routes Wavve vital frames from a registered sensor to the ingestion service', async () => {
+    const sensorSession = {
+      deviceId: '7b1c8f21-bd66-4a81-8b9f-620e5fed2c76',
+      patientId: 'ce54a4f9-50ad-4527-8652-1edc5daec281',
+    };
+    const sessions = { register: jest.fn(), unregister: jest.fn(), getSession: jest.fn().mockReturnValue(sensorSession) };
+    let resolveHandled!: () => void;
+    const handled = new Promise<void>((resolve) => {
+      resolveHandled = resolve;
+    });
+    const events = {
+      handleWavveVital: jest
+        .fn<(session: object, vital: object, timestamp: number) => Promise<void>>()
+        .mockImplementation(async () => resolveHandled()),
+    };
+    const config = {
+      get: (key: string) => ({
+        TCP_BIND_HOST: '127.0.0.1',
+        TCP_PORT: 0,
+        TCP_IDLE_TIMEOUT_MS: 30_000,
+      }[key]),
+    };
+    const service = new AeroSenseTcpServerService(config as never, sessions as never, events as never);
+    const port = await service.start();
+    const socket = createConnection({ host: '127.0.0.1', port });
+
+    await new Promise<void>((resolve, reject) => {
+      socket.once('connect', resolve);
+      socket.once('error', reject);
+    });
+    socket.write(wavveVitalFrame());
+    await handled;
+
+    expect(events.handleWavveVital).toHaveBeenCalledWith(
+      sensorSession,
+      expect.objectContaining({ heartRateBpm: 72, respirationRateBrpm: 16, validBit: 2 }),
+      expect.any(Number),
+    );
 
     socket.end();
     await service.stop();

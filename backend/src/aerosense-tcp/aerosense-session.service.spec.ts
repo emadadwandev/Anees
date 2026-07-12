@@ -21,7 +21,7 @@ function registrationFrame(): AeroSenseFrame {
 describe('AeroSenseSessionService', () => {
   it('binds a registered radar ID and records its firmware version', async () => {
     const devices = {
-      resolveAeroSenseDevice: jest.fn<(externalId: string) => Promise<{ id: string } | null>>().mockResolvedValue({ id: deviceId }),
+      resolveAeroSenseDevice: jest.fn<(externalId: string) => Promise<{ id: string; userId: string } | null>>().mockResolvedValue({ id: deviceId, userId: 'ce54a4f9-50ad-4527-8652-1edc5daec281' }),
     };
     const prisma = { device: { update: jest.fn<(args: unknown) => Promise<Record<string, never>>>().mockResolvedValue({}) } };
     const sessions = new AeroSenseSessionService(devices as never, prisma as never);
@@ -38,7 +38,7 @@ describe('AeroSenseSessionService', () => {
   });
 
   it('rejects an unknown radar ID without creating a session', async () => {
-    const devices = { resolveAeroSenseDevice: jest.fn<(externalId: string) => Promise<{ id: string } | null>>().mockResolvedValue(null) };
+    const devices = { resolveAeroSenseDevice: jest.fn<(externalId: string) => Promise<{ id: string; userId: string } | null>>().mockResolvedValue(null) };
     const prisma = { device: { update: jest.fn<(args: unknown) => Promise<Record<string, never>>>() } };
     const sessions = new AeroSenseSessionService(devices as never, prisma as never);
     const socket = {} as Socket;

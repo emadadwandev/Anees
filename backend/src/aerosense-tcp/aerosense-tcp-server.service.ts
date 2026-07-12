@@ -2,7 +2,9 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import { AddressInfo, createServer, Server, Socket } from 'net';
 import { Config } from '../config/config.schema';
+import { AeroSenseEventService } from './aerosense-event.service';
 import { decodeFrame, encodeStatusResponse, extractFrames } from './protocol/frame-codec';
+import { decodeWavveVitalData } from './protocol/wavve-codec';
 import { AeroSenseSessionService } from './aerosense-session.service';
 
 @Injectable()
@@ -14,6 +16,7 @@ export class AeroSenseTcpServerService implements OnModuleInit, OnModuleDestroy 
   constructor(
     private readonly config: ConfigService<Config>,
     private readonly sessions: AeroSenseSessionService,
+    private readonly events: AeroSenseEventService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -81,7 +84,12 @@ export class AeroSenseTcpServerService implements OnModuleInit, OnModuleDestroy 
       try {
         const extracted = extractFrames(buffer);
         buffer = extracted.remainder;
-        for (const wire of extracted.frames) void this.handleFrame(socket, wire);
+        for (const wire of extracted.frames) {
+          void this.handleFrame(socket, wire).catch((error) => {
+            this.logger.warn(error, 'Rejected AeroSense TCP event');
+            socket.destroy();
+          });
+        }
       } catch (error) {
         this.logger.warn(error, 'Rejected invalid AeroSense TCP frame');
         socket.destroy();
@@ -91,9 +99,19 @@ export class AeroSenseTcpServerService implements OnModuleInit, OnModuleDestroy 
 
   private async handleFrame(socket: Socket, wire: Buffer): Promise<void> {
     const frame = decodeFrame(wire);
-    if (frame.functionCode !== 0x0001) return;
+    if (frame.functionCode === 0x0001) {
+      const registered = await this.sessions.register(socket, frame);
+      socket.write(encodeStatusResponse(frame, registered ? 1 : 0));
+      return;
+    }
 
-    const registered = await this.sessions.register(socket, frame);
-    socket.write(encodeStatusResponse(frame, registered ? 1 : 0));
+    if (frame.protocol !== 'wavve' || frame.functionCode !== 0x03e8) return;
+
+    const session = this.sessions.getSession(socket);
+    if (!session) {
+      throw new Error('Wavve vital frame received before sensor registration');
+    }
+
+    await this.events.handleWavveVital(session, decodeWavveVitalData(frame.data), Date.now());
   }
 }
