@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AddressInfo, createServer, Server, Socket } from 'net';
+import { AddressInfo, BlockList, createServer, isIP, Server, Socket } from 'net';
 import { Config } from '../config/config.schema';
 import { AeroSenseEventService, WavveClinicalAlertKind } from './aerosense-event.service';
 import { decodeAssureEvent } from './protocol/assure-codec';
@@ -22,6 +22,7 @@ function isWavveClinicalAlertKind(kind: string): kind is WavveClinicalAlertKind 
 export class AeroSenseTcpServerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AeroSenseTcpServerService.name);
   private readonly sockets = new Set<Socket>();
+  private allowedNetworks?: BlockList;
   private server?: Server;
 
   constructor(
@@ -80,6 +81,11 @@ export class AeroSenseTcpServerService implements OnModuleInit, OnModuleDestroy 
   }
 
   private handleConnection(socket: Socket): void {
+    if (!this.isAddressAllowed(socket.remoteAddress ?? '')) {
+      this.logger.warn(`Rejected AeroSense TCP connection from ${socket.remoteAddress ?? 'unknown address'}`);
+      socket.destroy();
+      return;
+    }
     this.sockets.add(socket);
     socket.setTimeout(this.config.get('TCP_IDLE_TIMEOUT_MS')!);
     socket.once('timeout', () => socket.destroy());
@@ -106,6 +112,30 @@ export class AeroSenseTcpServerService implements OnModuleInit, OnModuleDestroy 
         socket.destroy();
       }
     });
+  }
+
+  private isAddressAllowed(address: string): boolean {
+    const configured = this.config.get('TCP_ALLOWED_CIDRS')?.trim() ?? '';
+    if (!configured) return true;
+
+    if (!this.allowedNetworks) {
+      this.allowedNetworks = new BlockList();
+      for (const cidr of configured.split(',').map((value) => value.trim()).filter(Boolean)) {
+        const [network, prefixText] = cidr.split('/');
+        const family = isIP(network);
+        const prefix = Number(prefixText);
+        const maxPrefix = family === 4 ? 32 : 128;
+        if (!family || !Number.isInteger(prefix) || prefix < 0 || prefix > maxPrefix) {
+          throw new Error(`Invalid TCP allowed CIDR: ${cidr}`);
+        }
+        this.allowedNetworks.addSubnet(network, prefix, family === 4 ? 'ipv4' : 'ipv6');
+      }
+    }
+
+    const family = isIP(address);
+    return family === 4 || family === 6
+      ? this.allowedNetworks.check(address, family === 4 ? 'ipv4' : 'ipv6')
+      : false;
   }
 
   private async handleFrame(socket: Socket, wire: Buffer): Promise<void> {

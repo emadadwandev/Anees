@@ -104,6 +104,18 @@ describe('AeroSense TCP listener configuration', () => {
     expect(() => configSchema.parse({ ...requiredConfig, TCP_PORT: 443 })).toThrow();
   });
 
+  it('accepts only addresses within the configured TCP CIDRs', () => {
+    const service = new AeroSenseTcpServerService(
+      { get: (key: string) => (key === 'TCP_ALLOWED_CIDRS' ? '10.0.0.0/8,192.168.1.0/24' : undefined) } as never,
+      {} as never,
+      {} as never,
+    );
+
+    expect((service as any).isAddressAllowed('10.1.2.3')).toBe(true);
+    expect((service as any).isAddressAllowed('192.168.1.42')).toBe(true);
+    expect((service as any).isAddressAllowed('192.168.2.42')).toBe(false);
+  });
+
   it('accepts a local TCP connection and stops cleanly', async () => {
     const config = {
       get: (key: string) => ({
