@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRedis } from '@nestjs-modules/ioredis';
+import { InjectQueue } from '@nestjs/bullmq';
+import { AlertStatus, AlertType } from '@prisma/client';
+import { Queue } from 'bullmq';
 import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { WavveVitalData } from './protocol/wavve-codec';
@@ -9,11 +12,14 @@ export interface AeroSenseSession {
   patientId: string;
 }
 
+const FALL_GRACE_MS = 10_000;
+
 @Injectable()
 export class AeroSenseEventService {
   constructor(
     private readonly prisma: PrismaService,
     @InjectRedis() private readonly redis: Redis,
+    @InjectQueue('fall-alert') private readonly fallAlertQueue: Queue,
   ) {}
 
   async handleWavveVital(session: AeroSenseSession, vital: WavveVitalData, timestamp: number): Promise<void> {
@@ -41,5 +47,96 @@ export class AeroSenseEventService {
         signal_quality: 1,
       }),
     );
+  }
+
+  async handleAssureFall(
+    session: AeroSenseSession,
+    position: { xM: number; yM: number },
+    timestamp: number,
+  ): Promise<void> {
+    let alert = await this.prisma.alertEvent.findFirst({
+      where: {
+        deviceId: session.deviceId,
+        type: AlertType.fall,
+        status: AlertStatus.pending_cancellation,
+      },
+    });
+
+    if (!alert) {
+      alert = await this.prisma.alertEvent.create({
+        data: {
+          deviceId: session.deviceId,
+          patientId: session.patientId,
+          type: AlertType.fall,
+          status: AlertStatus.pending_cancellation,
+          notes: `AeroSense Assure fall coordinates: x=${position.xM}m, y=${position.yM}m`,
+          triggeredAt: new Date(timestamp),
+        },
+      });
+      await this.prisma.auditLog.create({
+        data: {
+          actorId: session.patientId,
+          action: 'alert.fall_detected',
+          resourceType: 'alert_event',
+          resourceId: alert.id,
+        },
+      });
+    }
+
+    await this.fallAlertQueue.add(
+      'fall-alert-dispatch',
+      { alertId: alert.id, patientId: session.patientId, deviceId: session.deviceId },
+      { delay: FALL_GRACE_MS, jobId: `fall-alert-${alert.id}` },
+    );
+
+    const fallPayload = JSON.stringify({
+      type: 'fall.detected',
+      alertId: alert.id,
+      patientId: session.patientId,
+      room: 'Unknown Room',
+      detectedAt: new Date(timestamp).toISOString(),
+      confidence: 1,
+      source: 'aerosense_assure',
+      coordinates: position,
+    });
+    await Promise.all([
+      this.redis.publish('alerts:caregiver', fallPayload),
+      this.redis.publish(`alerts:patient:${session.patientId}`, fallPayload),
+    ]);
+  }
+
+  async handleAssureFallElimination(session: AeroSenseSession): Promise<void> {
+    const pendingAlert = await this.prisma.alertEvent.findFirst({
+      where: {
+        deviceId: session.deviceId,
+        type: AlertType.fall,
+        status: AlertStatus.pending_cancellation,
+      },
+      orderBy: { triggeredAt: 'desc' },
+    });
+    if (!pendingAlert) return;
+
+    const jobs = await this.fallAlertQueue.getJobs(['delayed']);
+    const job = jobs.find((candidate) => candidate.data.alertId === pendingAlert.id);
+    if (job) await job.remove();
+
+    await this.prisma.alertEvent.update({
+      where: { id: pendingAlert.id },
+      data: { status: AlertStatus.cancelled_by_user, cancelledByUser: true },
+    });
+
+    const cancelPayload = JSON.stringify({
+      type: 'alert.state_changed',
+      alertId: pendingAlert.id,
+      patientId: session.patientId,
+      state: AlertStatus.cancelled_by_user,
+      cancelledBy: 'sensor',
+      updatedAt: new Date().toISOString(),
+      source: 'aerosense_assure',
+    });
+    await Promise.all([
+      this.redis.publish('alerts:caregiver', cancelPayload),
+      this.redis.publish(`alerts:patient:${session.patientId}`, cancelPayload),
+    ]);
   }
 }

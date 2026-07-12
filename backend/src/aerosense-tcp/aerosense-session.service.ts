@@ -28,17 +28,19 @@ export class AeroSenseSessionService {
   }
 
   async register(socket: Socket, frame: AeroSenseFrame): Promise<boolean> {
-    if (frame.functionCode !== 0x0001 || frame.data.length !== 18) return false;
+    const isWavveRegistration = frame.protocol === 'wavve' && frame.functionCode === 0x0001 && frame.data.length === 18;
+    const isAssureRegistration = frame.protocol === 'assure' && frame.functionCode === 0x0012 && frame.data.length === 14;
+    if (!isWavveRegistration && !isAssureRegistration) return false;
 
-    const firmwareVersion = Array.from(frame.data.subarray(1, 5)).join('.');
-    const externalId = frame.data.subarray(5).toString('hex').toUpperCase();
+    const firmwareVersion = isWavveRegistration ? Array.from(frame.data.subarray(1, 5)).join('.') : undefined;
+    const externalId = frame.data.subarray(isWavveRegistration ? 5 : 1).toString('hex').toUpperCase();
     const device = await this.devices.resolveAeroSenseDevice(externalId);
     if (!device) return false;
 
     await this.prisma.device.update({
       where: { id: device.id },
       data: {
-        firmwareVersion,
+        ...(firmwareVersion && { firmwareVersion }),
         lastHeartbeat: new Date(),
         status: DeviceStatus.online,
       },

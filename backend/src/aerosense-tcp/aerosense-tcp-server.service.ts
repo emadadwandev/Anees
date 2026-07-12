@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { AddressInfo, createServer, Server, Socket } from 'net';
 import { Config } from '../config/config.schema';
 import { AeroSenseEventService } from './aerosense-event.service';
+import { decodeAssureEvent } from './protocol/assure-codec';
 import { decodeFrame, encodeStatusResponse, extractFrames } from './protocol/frame-codec';
 import { decodeWavveVitalData } from './protocol/wavve-codec';
 import { AeroSenseSessionService } from './aerosense-session.service';
@@ -99,18 +100,33 @@ export class AeroSenseTcpServerService implements OnModuleInit, OnModuleDestroy 
 
   private async handleFrame(socket: Socket, wire: Buffer): Promise<void> {
     const frame = decodeFrame(wire);
-    if (frame.functionCode === 0x0001) {
+    const isRegistration =
+      (frame.protocol === 'wavve' && frame.functionCode === 0x0001) ||
+      (frame.protocol === 'assure' && frame.functionCode === 0x0012);
+    if (isRegistration) {
       const registered = await this.sessions.register(socket, frame);
       socket.write(encodeStatusResponse(frame, registered ? 1 : 0));
       return;
     }
 
-    if (frame.protocol !== 'wavve' || frame.functionCode !== 0x03e8) return;
-
     const session = this.sessions.getSession(socket);
     if (!session) {
-      throw new Error('Wavve vital frame received before sensor registration');
+      throw new Error('AeroSense event received before sensor registration');
     }
+
+    if (frame.protocol === 'assure') {
+      const event = decodeAssureEvent(frame);
+      if (event?.kind === 'fall') {
+        await this.events.handleAssureFall(session, event, Date.now());
+        socket.write(encodeStatusResponse(frame, 1));
+      } else if (event?.kind === 'fall_eliminated') {
+        await this.events.handleAssureFallElimination(session);
+        socket.write(encodeStatusResponse(frame, 1));
+      }
+      return;
+    }
+
+    if (frame.protocol !== 'wavve' || frame.functionCode !== 0x03e8) return;
 
     await this.events.handleWavveVital(session, decodeWavveVitalData(frame.data), Date.now());
   }

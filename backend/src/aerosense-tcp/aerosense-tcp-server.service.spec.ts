@@ -29,6 +29,21 @@ function wavveVitalFrame(): Buffer {
   return frame;
 }
 
+function assureFallFrame(): Buffer {
+  const frame = Buffer.alloc(24);
+  frame.writeUInt8(0x12, 0);
+  frame.writeUInt8(0x01, 1);
+  frame.writeUInt8(0x01, 2);
+  frame.writeUInt8(0x01, 3);
+  frame.writeUInt32BE(44, 4);
+  frame.writeUInt16BE(10_000, 8);
+  frame.writeUInt32BE(10, 10);
+  frame.writeUInt16BE(0x0009, 14);
+  frame.writeFloatBE(3, 16);
+  frame.writeFloatBE(5, 20);
+  return frame;
+}
+
 const requiredConfig = {
   DATABASE_URL: 'postgresql://anees:anees_dev_secret@localhost:5432/anees',
   REDIS_URL: 'redis://:anees_redis_dev@localhost:6379',
@@ -162,6 +177,55 @@ describe('AeroSense TCP listener configuration', () => {
     expect(events.handleWavveVital).toHaveBeenCalledWith(
       sensorSession,
       expect.objectContaining({ heartRateBpm: 72, respirationRateBrpm: 16, validBit: 2 }),
+      expect.any(Number),
+    );
+
+    socket.end();
+    await service.stop();
+  });
+
+  it('acknowledges an Assure fall after it enters the alert workflow', async () => {
+    const sensorSession = {
+      deviceId: '7b1c8f21-bd66-4a81-8b9f-620e5fed2c76',
+      patientId: 'ce54a4f9-50ad-4527-8652-1edc5daec281',
+    };
+    const sessions = { register: jest.fn(), unregister: jest.fn(), getSession: jest.fn().mockReturnValue(sensorSession) };
+    const events = {
+      handleAssureFall: jest.fn<(session: object, position: object, timestamp: number) => Promise<void>>().mockResolvedValue(),
+      handleWavveVital: jest.fn(),
+    };
+    const config = {
+      get: (key: string) => ({
+        TCP_BIND_HOST: '127.0.0.1',
+        TCP_PORT: 0,
+        TCP_IDLE_TIMEOUT_MS: 30_000,
+      }[key]),
+    };
+    const service = new AeroSenseTcpServerService(config as never, sessions as never, events as never);
+    const port = await service.start();
+    const socket = createConnection({ host: '127.0.0.1', port });
+    const response = new Promise<Buffer>((resolve, reject) => {
+      socket.once('data', resolve);
+      socket.once('error', reject);
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      socket.once('connect', resolve);
+      socket.once('error', reject);
+    });
+    socket.write(assureFallFrame());
+
+    expect(decodeFrame(await response)).toMatchObject({
+      protocol: 'assure',
+      type: 0,
+      command: 2,
+      requestId: 44,
+      functionCode: 0x0009,
+      data: Buffer.from([0, 0, 0, 1]),
+    });
+    expect(events.handleAssureFall).toHaveBeenCalledWith(
+      sensorSession,
+      { kind: 'fall', xM: 3, yM: 5 },
       expect.any(Number),
     );
 

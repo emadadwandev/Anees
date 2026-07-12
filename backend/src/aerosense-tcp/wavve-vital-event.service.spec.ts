@@ -23,7 +23,7 @@ describe('AeroSenseEventService', () => {
   it('persists Wavve diagnostics and publishes a complete vital reading', async () => {
     const prisma = { $executeRaw: jest.fn<() => Promise<number>>().mockResolvedValue(1) };
     const redis = { publish: jest.fn<(channel: string, payload: string) => Promise<number>>().mockResolvedValue(1) };
-    const service = new AeroSenseEventService(prisma as never, redis as never);
+    const service = new AeroSenseEventService(prisma as never, redis as never, {} as never);
 
     await service.handleWavveVital(session, vital, 1_720_672_000_000);
 
@@ -44,7 +44,7 @@ describe('AeroSenseEventService', () => {
   it('stores partial Wavve readings without publishing clinical vitals', async () => {
     const prisma = { $executeRaw: jest.fn<() => Promise<number>>().mockResolvedValue(1) };
     const redis = { publish: jest.fn<(channel: string, payload: string) => Promise<number>>().mockResolvedValue(1) };
-    const service = new AeroSenseEventService(prisma as never, redis as never);
+    const service = new AeroSenseEventService(prisma as never, redis as never, {} as never);
 
     await service.handleWavveVital(session, { ...vital, validBit: 1 }, 1_720_672_000_000);
 

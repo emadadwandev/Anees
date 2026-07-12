@@ -18,6 +18,18 @@ function registrationFrame(): AeroSenseFrame {
   };
 }
 
+function assureRegistrationFrame(): AeroSenseFrame {
+  return {
+    protocol: 'assure',
+    type: 1,
+    command: 1,
+    requestId: 1,
+    timeoutOrStatus: 10000,
+    functionCode: 0x0012,
+    data: Buffer.from([0x00, ...Buffer.from(radarId, 'hex')]),
+  };
+}
+
 describe('AeroSenseSessionService', () => {
   it('binds a registered radar ID and records its firmware version', async () => {
     const devices = {
@@ -46,5 +58,25 @@ describe('AeroSenseSessionService', () => {
     await expect(sessions.register(socket, registrationFrame())).resolves.toBe(false);
     expect(prisma.device.update).not.toHaveBeenCalled();
     expect(sessions.getDeviceId(socket)).toBeUndefined();
+  });
+
+  it('binds an Assure radar using its 0x0012 registration format', async () => {
+    const devices = {
+      resolveAeroSenseDevice: jest
+        .fn<(externalId: string) => Promise<{ id: string; userId: string } | null>>()
+        .mockResolvedValue({ id: deviceId, userId: 'ce54a4f9-50ad-4527-8652-1edc5daec281' }),
+    };
+    const prisma = { device: { update: jest.fn<(args: unknown) => Promise<Record<string, never>>>().mockResolvedValue({}) } };
+    const sessions = new AeroSenseSessionService(devices as never, prisma as never);
+    const socket = {} as Socket;
+
+    await expect(sessions.register(socket, assureRegistrationFrame())).resolves.toBe(true);
+
+    expect(devices.resolveAeroSenseDevice).toHaveBeenCalledWith(radarId);
+    expect(prisma.device.update).toHaveBeenCalledWith({
+      where: { id: deviceId },
+      data: { lastHeartbeat: expect.any(Date), status: 'online' },
+    });
+    expect(sessions.getSession(socket)).toEqual({ deviceId, patientId: 'ce54a4f9-50ad-4527-8652-1edc5daec281' });
   });
 });
