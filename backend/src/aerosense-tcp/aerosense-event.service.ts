@@ -5,6 +5,7 @@ import { AlertStatus, AlertType } from '@prisma/client';
 import { Queue } from 'bullmq';
 import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
+import { WavveAlertEvent } from './protocol/wavve-alert-codec';
 import { WavveVitalData } from './protocol/wavve-codec';
 
 export interface AeroSenseSession {
@@ -95,6 +96,40 @@ export class AeroSenseEventService {
         source: 'wavve',
       }),
     );
+  }
+
+  async handleWavveObservation(session: AeroSenseSession, event: WavveAlertEvent, timestamp: number): Promise<void> {
+    if (event.kind === 'bed.exit') {
+      await this.prisma.systemEvent.create({
+        data: { deviceId: session.deviceId, type: 'wavve.bed_exit', payload: { patientId: session.patientId, source: 'wavve' } },
+      });
+      await this.redis.publish('alerts:caregiver', JSON.stringify({
+        type: 'bed.exit', deviceId: session.deviceId, patientId: session.patientId,
+        timestamp: new Date(timestamp).toISOString(), source: 'wavve',
+      }));
+      return;
+    }
+
+    if (event.kind === 'system.wifi_signal') {
+      await this.prisma.systemEvent.create({
+        data: { deviceId: session.deviceId, type: 'wavve.wifi_signal', payload: { dbm: event.dbm, source: 'wavve' } },
+      });
+      return;
+    }
+
+    const coordinates = event.kind === 'bed.movement' ? { energy: event.energy } : { turnOver: true };
+    const eventType = event.kind === 'bed.movement' ? 'wavve.body_movement' : 'wavve.turn_over';
+    await this.prisma.$executeRaw`
+      INSERT INTO motion_events (time, device_id, patient_id, event_type, doppler_magnitude, coordinates)
+      VALUES (to_timestamp(${timestamp} / 1000.0), ${session.deviceId}::uuid, ${session.patientId}::uuid,
+        ${eventType}, ${event.kind === 'bed.movement' ? event.energy : null}, ${JSON.stringify(coordinates)}::jsonb)
+    `;
+    if (event.kind === 'bed.turn_over') {
+      await this.redis.publish('alerts:caregiver', JSON.stringify({
+        type: 'bed.turn_over', deviceId: session.deviceId, patientId: session.patientId,
+        timestamp: new Date(timestamp).toISOString(), source: 'wavve',
+      }));
+    }
   }
 
   async handleAssureFall(
