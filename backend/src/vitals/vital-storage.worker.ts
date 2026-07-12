@@ -42,6 +42,10 @@ export class VitalStorageWorker implements OnModuleInit, OnModuleDestroy {
     this.subscriber.on('pmessage', (_pattern, _channel, message) => {
       try {
         const reading: VitalReading = JSON.parse(message);
+        if (!this.isValidReading(reading)) {
+          this.logger.warn('Discarded invalid vital reading from Redis');
+          return;
+        }
         this.buffer.push(reading);
         if (this.buffer.length >= BUFFER_MAX_SIZE) void this.flush();
       } catch (e) {
@@ -49,6 +53,18 @@ export class VitalStorageWorker implements OnModuleInit, OnModuleDestroy {
       }
     });
     this.flushTimer = setInterval(() => void this.flush(), BUFFER_INTERVAL_MS);
+  }
+
+  private isValidReading(reading: VitalReading): boolean {
+    return (
+      Number.isFinite(reading.timestamp) &&
+      Number.isFinite(reading.heart_rate_bpm) &&
+      Number.isFinite(reading.resp_rate_brpm) &&
+      Number.isFinite(reading.signal_quality) &&
+      reading.heart_rate_bpm >= 20 && reading.heart_rate_bpm <= 250 &&
+      reading.resp_rate_brpm >= 3 && reading.resp_rate_brpm <= 60 &&
+      reading.signal_quality >= 0 && reading.signal_quality <= 1
+    );
   }
 
   async onModuleDestroy() {
