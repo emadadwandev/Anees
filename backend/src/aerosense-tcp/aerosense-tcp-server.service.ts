@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import { AddressInfo, BlockList, createServer, isIP, Server, Socket } from 'net';
 import { Config } from '../config/config.schema';
+import { MetricsService } from '../metrics/metrics.service';
 import { AeroSenseEventService, WavveClinicalAlertKind } from './aerosense-event.service';
 import { decodeAssureEvent } from './protocol/assure-codec';
 import { decodeFrame, encodeStatusResponse, extractFrames } from './protocol/frame-codec';
@@ -29,6 +30,7 @@ export class AeroSenseTcpServerService implements OnModuleInit, OnModuleDestroy 
     private readonly config: ConfigService<Config>,
     private readonly sessions: AeroSenseSessionService,
     private readonly events: AeroSenseEventService,
+    private readonly metrics?: MetricsService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -108,6 +110,7 @@ export class AeroSenseTcpServerService implements OnModuleInit, OnModuleDestroy 
           });
         }
       } catch (error) {
+        this.metrics?.tcpFramesRejected.inc({ protocol: 'unknown', reason: 'invalid_frame' });
         this.logger.warn(error, 'Rejected invalid AeroSense TCP frame');
         socket.destroy();
       }
@@ -140,6 +143,10 @@ export class AeroSenseTcpServerService implements OnModuleInit, OnModuleDestroy 
 
   private async handleFrame(socket: Socket, wire: Buffer): Promise<void> {
     const frame = decodeFrame(wire);
+    const labels = { protocol: frame.protocol, function_code: `0x${frame.functionCode.toString(16).padStart(4, '0')}` };
+    const startedAt = performance.now();
+    this.metrics?.tcpFramesReceived.inc(labels);
+    try {
     const isRegistration =
       (frame.protocol === 'wavve' && frame.functionCode === 0x0001) ||
       (frame.protocol === 'assure' && frame.functionCode === 0x0012);
@@ -182,6 +189,9 @@ export class AeroSenseTcpServerService implements OnModuleInit, OnModuleDestroy 
       await this.events.handleWavveClinicalAlert(session, alert.kind, Date.now());
     } else if (alert) {
       await this.events.handleWavveObservation(session, alert, Date.now());
+    }
+    } finally {
+      this.metrics?.tcpHandlerDuration.observe(labels, (performance.now() - startedAt) / 1000);
     }
   }
 }
