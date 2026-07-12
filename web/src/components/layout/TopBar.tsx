@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Bell, Search, LogOut, User } from 'lucide-react';
+import { Bell, Search, LogOut } from 'lucide-react';
 import { signOut, useSession } from 'next-auth/react';
 import { useAlertStore } from '@/lib/store';
 import { useRouter } from 'next/navigation';
@@ -101,15 +101,6 @@ export function TopBar() {
                   {session?.user?.email}
                 </p>
               </div>
-              <button
-                onClick={() => router.push('/settings')}
-                className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors"
-                style={{ color: 'var(--adm-t2)' }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--adm-card-hover)'; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = ''; }}
-              >
-                <User size={14} /> Profile
-              </button>
               <button
                 onClick={() => signOut({ callbackUrl: '/login' })}
                 className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-colors"

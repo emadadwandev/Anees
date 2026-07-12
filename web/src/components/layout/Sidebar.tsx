@@ -8,7 +8,6 @@ import {
   BarChart2,
   FileText,
   Cpu,
-  Settings,
 } from 'lucide-react';
 import { useAlertStore } from '@/lib/store';
 
@@ -18,8 +17,7 @@ const navItems = [
   { href: '/analytics', label: 'Analytics', icon: BarChart2 },
   { href: '/reports',  label: 'Reports',   icon: FileText },
   { href: '/devices',  label: 'Devices',   icon: Cpu },
-  { href: '/settings', label: 'Settings',  icon: Settings },
-];
+] as const;
 
 export function Sidebar() {
   const pathname = usePathname();

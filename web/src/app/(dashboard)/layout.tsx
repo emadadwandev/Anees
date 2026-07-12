@@ -48,7 +48,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         duration: Infinity,
         action: {
           label: 'View',
-          onClick: () => router.push(`/alerts/${event.alertId}`),
+          onClick: () => router.push('/alerts'),
         },
       });
     });

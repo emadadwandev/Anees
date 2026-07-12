@@ -26,7 +26,7 @@ const NAV = [
   { href: '/admin/analytics', label: 'Analytics',      icon: BarChart2 },
   { href: '/admin/devices',   label: 'Devices',        icon: Cpu },
   { href: '/admin/settings',  label: 'Settings',       icon: Settings },
-];
+] as const;
 
 interface Props {
   children: React.ReactNode;

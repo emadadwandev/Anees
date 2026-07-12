@@ -62,11 +62,11 @@ export default async function PatientDetailPage({ params }: Props) {
           <DeviceField label="Room" value={patient.device.roomLabel} />
           <DeviceField
             label="Signal Quality"
-            value={`${Math.round(patient.device.signalQuality * 100)}%`}
+            value={patient.device.signalQuality == null ? 'Unavailable' : `${Math.round(patient.device.signalQuality * 100)}%`}
           />
           <DeviceField
             label="Last Heartbeat"
-            value={format(new Date(patient.device.lastHeartbeat), 'HH:mm:ss')}
+            value={patient.device.lastHeartbeat ? format(new Date(patient.device.lastHeartbeat), 'HH:mm:ss') : 'Never'}
           />
           <DeviceField
             label="Occlusion"
