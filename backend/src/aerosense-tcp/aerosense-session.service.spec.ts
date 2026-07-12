@@ -36,7 +36,7 @@ describe('AeroSenseSessionService', () => {
       resolveAeroSenseDevice: jest.fn<(externalId: string) => Promise<{ id: string; userId: string } | null>>().mockResolvedValue({ id: deviceId, userId: 'ce54a4f9-50ad-4527-8652-1edc5daec281' }),
     };
     const prisma = { device: { update: jest.fn<(args: unknown) => Promise<Record<string, never>>>().mockResolvedValue({}) } };
-    const sessions = new AeroSenseSessionService(devices as never, prisma as never);
+    const sessions = new AeroSenseSessionService(devices as never, prisma as never, {} as never, {} as never);
     const socket = {} as Socket;
 
     await expect(sessions.register(socket, registrationFrame())).resolves.toBe(true);
@@ -52,7 +52,7 @@ describe('AeroSenseSessionService', () => {
   it('rejects an unknown radar ID without creating a session', async () => {
     const devices = { resolveAeroSenseDevice: jest.fn<(externalId: string) => Promise<{ id: string; userId: string } | null>>().mockResolvedValue(null) };
     const prisma = { device: { update: jest.fn<(args: unknown) => Promise<Record<string, never>>>() } };
-    const sessions = new AeroSenseSessionService(devices as never, prisma as never);
+    const sessions = new AeroSenseSessionService(devices as never, prisma as never, {} as never, {} as never);
     const socket = {} as Socket;
 
     await expect(sessions.register(socket, registrationFrame())).resolves.toBe(false);
@@ -67,7 +67,7 @@ describe('AeroSenseSessionService', () => {
         .mockResolvedValue({ id: deviceId, userId: 'ce54a4f9-50ad-4527-8652-1edc5daec281' }),
     };
     const prisma = { device: { update: jest.fn<(args: unknown) => Promise<Record<string, never>>>().mockResolvedValue({}) } };
-    const sessions = new AeroSenseSessionService(devices as never, prisma as never);
+    const sessions = new AeroSenseSessionService(devices as never, prisma as never, {} as never, {} as never);
     const socket = {} as Socket;
 
     await expect(sessions.register(socket, assureRegistrationFrame())).resolves.toBe(true);
@@ -78,5 +78,32 @@ describe('AeroSenseSessionService', () => {
       data: { lastHeartbeat: expect.any(Date), status: 'online' },
     });
     expect(sessions.getSession(socket)).toEqual({ deviceId, patientId: 'ce54a4f9-50ad-4527-8652-1edc5daec281' });
+  });
+
+  it('marks a disconnected device offline after the TCP grace period', async () => {
+    jest.useFakeTimers();
+    try {
+      const prisma = {
+        device: { update: jest.fn<(...args: unknown[]) => Promise<Record<string, never>>>().mockResolvedValue({}) },
+        systemEvent: { create: jest.fn<(...args: unknown[]) => Promise<Record<string, never>>>().mockResolvedValue({}) },
+      };
+      const redis = { publish: jest.fn<(...args: unknown[]) => Promise<number>>().mockResolvedValue(1) };
+      const sessions = new AeroSenseSessionService(
+        {} as never,
+        prisma as never,
+        { get: () => 5_000 } as never,
+        redis as never,
+      );
+      const socket = {} as Socket;
+      (sessions as any).sessions.set(socket, { deviceId, patientId: 'ce54a4f9-50ad-4527-8652-1edc5daec281' });
+
+      sessions.unregister(socket);
+      await jest.advanceTimersByTimeAsync(5_000);
+
+      expect(prisma.device.update).toHaveBeenCalledWith({ where: { id: deviceId }, data: { status: 'offline' } });
+      expect(redis.publish).toHaveBeenCalledWith('alerts:caregiver', expect.stringContaining('system.device_offline'));
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

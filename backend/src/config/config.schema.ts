@@ -15,6 +15,7 @@ export const configSchema = z.object({
   TCP_BIND_HOST: z.string().default('0.0.0.0'),
   TCP_PORT: z.coerce.number().int().min(1024).max(65535).default(8899),
   TCP_IDLE_TIMEOUT_MS: z.coerce.number().int().min(30_000).default(120_000),
+  TCP_DISCONNECT_GRACE_MS: z.coerce.number().int().min(1_000).default(30_000),
   TCP_ALLOWED_CIDRS: z.string().default(''),
 
   JWT_ACCESS_SECRET: z.string().min(16),
