@@ -147,6 +147,10 @@ export class AeroSenseTcpServerService implements OnModuleInit, OnModuleDestroy 
     const startedAt = performance.now();
     this.metrics?.tcpFramesReceived.inc(labels);
     try {
+    if (frame.type === 0 && frame.command === 2) {
+      this.sessions.resolveCommandResponse(socket, frame);
+      return;
+    }
     const isRegistration =
       (frame.protocol === 'wavve' && frame.functionCode === 0x0001) ||
       (frame.protocol === 'assure' && frame.functionCode === 0x0012);

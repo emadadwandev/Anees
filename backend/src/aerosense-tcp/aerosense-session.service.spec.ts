@@ -106,4 +106,22 @@ describe('AeroSenseSessionService', () => {
       jest.useRealTimers();
     }
   });
+
+  it('sends a command through the active device socket and resolves its matching response', async () => {
+    const sessions = new AeroSenseSessionService({} as never, {} as never, { get: () => 5_000 } as never, {} as never);
+    const socket = { write: jest.fn() } as unknown as Socket;
+    const response = {
+      protocol: 'wavve' as const, type: 0 as const, command: 2 as const, requestId: 44,
+      timeoutOrStatus: 0, functionCode: 0x03e9, data: Buffer.from([0, 0, 0, 1]),
+    };
+    (sessions as any).sessions.set(socket, { deviceId, patientId: 'ce54a4f9-50ad-4527-8652-1edc5daec281' });
+    (sessions as any).deviceSockets.set(deviceId, socket);
+
+    const pending = sessions.sendCommand(deviceId, {
+      protocol: 'wavve', requestId: 44, timeoutOrStatus: 10_000, functionCode: 0x03e9, data: Buffer.from([0, 0, 0, 60]),
+    });
+    expect(socket.write).toHaveBeenCalledTimes(1);
+    expect(sessions.resolveCommandResponse(socket, response)).toBe(true);
+    await expect(pending).resolves.toEqual(response);
+  });
 });

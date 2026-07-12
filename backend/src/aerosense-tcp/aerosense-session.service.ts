@@ -8,12 +8,15 @@ import { Config } from '../config/config.schema';
 import { DevicesService } from '../devices/devices.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AeroSenseFrame } from './protocol/aerosense-frame';
+import { encodeCommandRequest } from './protocol/frame-codec';
 import type { AeroSenseSession } from './aerosense-event.service';
 
 @Injectable()
 export class AeroSenseSessionService {
   private readonly sessions = new Map<Socket, AeroSenseSession>();
+  private readonly deviceSockets = new Map<string, Socket>();
   private readonly offlineTimers = new Map<string, NodeJS.Timeout>();
+  private readonly pendingCommands = new Map<string, { socket: Socket; resolve: (frame: AeroSenseFrame) => void; reject: (error: Error) => void; timer: NodeJS.Timeout }>();
 
   constructor(
     private readonly devices: DevicesService,
@@ -33,6 +36,7 @@ export class AeroSenseSessionService {
   unregister(socket: Socket): void {
     const session = this.sessions.get(socket);
     this.sessions.delete(socket);
+    if (session && this.deviceSockets.get(session.deviceId) === socket) this.deviceSockets.delete(session.deviceId);
     if (!session || this.hasActiveSession(session.deviceId)) return;
 
     this.offlineTimers.get(session.deviceId) && clearTimeout(this.offlineTimers.get(session.deviceId));
@@ -63,6 +67,35 @@ export class AeroSenseSessionService {
       },
     });
     this.sessions.set(socket, { deviceId: device.id, patientId: device.userId });
+    this.deviceSockets.set(device.id, socket);
+    return true;
+  }
+
+  sendCommand(deviceId: string, frame: Pick<AeroSenseFrame, 'protocol' | 'requestId' | 'timeoutOrStatus' | 'functionCode' | 'data'>): Promise<AeroSenseFrame> {
+    const socket = this.deviceSockets.get(deviceId);
+    if (!socket || socket.destroyed) return Promise.reject(new Error('AeroSense device is not connected'));
+    const key = `${deviceId}:${frame.requestId}`;
+    if (this.pendingCommands.has(key)) return Promise.reject(new Error('AeroSense command request ID is already pending'));
+
+    return new Promise<AeroSenseFrame>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingCommands.delete(key);
+        reject(new Error('AeroSense command timed out'));
+      }, frame.timeoutOrStatus);
+      this.pendingCommands.set(key, { socket, resolve, reject, timer });
+      socket.write(encodeCommandRequest(frame));
+    });
+  }
+
+  resolveCommandResponse(socket: Socket, frame: AeroSenseFrame): boolean {
+    const session = this.sessions.get(socket);
+    if (!session || frame.type !== 0 || frame.command !== 2) return false;
+    const key = `${session.deviceId}:${frame.requestId}`;
+    const pending = this.pendingCommands.get(key);
+    if (!pending || pending.socket !== socket) return false;
+    clearTimeout(pending.timer);
+    this.pendingCommands.delete(key);
+    pending.resolve(frame);
     return true;
   }
 
