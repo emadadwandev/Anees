@@ -51,6 +51,35 @@ export class MetricsService implements OnModuleInit {
     registers: [this.registry],
   });
 
+  readonly tcpConnectionsActive = new Gauge({
+    name: 'anees_tcp_connections_active',
+    help: 'Currently connected AeroSense TCP sensors',
+    labelNames: ['protocol'],
+    registers: [this.registry],
+  });
+
+  readonly tcpFramesReceived = new Counter({
+    name: 'anees_tcp_frames_received_total',
+    help: 'AeroSense TCP frames received by protocol and function code',
+    labelNames: ['protocol', 'function_code'],
+    registers: [this.registry],
+  });
+
+  readonly tcpFramesRejected = new Counter({
+    name: 'anees_tcp_frames_rejected_total',
+    help: 'Rejected AeroSense TCP frames by protocol and bounded reason',
+    labelNames: ['protocol', 'reason'],
+    registers: [this.registry],
+  });
+
+  readonly tcpHandlerDuration = new Histogram({
+    name: 'anees_tcp_handler_duration_seconds',
+    help: 'AeroSense TCP frame handler duration',
+    labelNames: ['protocol', 'function_code'],
+    buckets: [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1],
+    registers: [this.registry],
+  });
+
   onModuleInit() {
     collectDefaultMetrics({ register: this.registry });
   }
