@@ -2,11 +2,21 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import { AddressInfo, createServer, Server, Socket } from 'net';
 import { Config } from '../config/config.schema';
-import { AeroSenseEventService } from './aerosense-event.service';
+import { AeroSenseEventService, WavveClinicalAlertKind } from './aerosense-event.service';
 import { decodeAssureEvent } from './protocol/assure-codec';
 import { decodeFrame, encodeStatusResponse, extractFrames } from './protocol/frame-codec';
+import { decodeWavveAlertEvent } from './protocol/wavve-alert-codec';
 import { decodeWavveVitalData } from './protocol/wavve-codec';
 import { AeroSenseSessionService } from './aerosense-session.service';
+
+const WAVVE_CLINICAL_ALERT_KINDS = new Set<WavveClinicalAlertKind>([
+  'vital.no_breath', 'vital.low_breath', 'vital.high_breath',
+  'vital.no_heart', 'vital.low_heart', 'vital.high_heart',
+]);
+
+function isWavveClinicalAlertKind(kind: string): kind is WavveClinicalAlertKind {
+  return WAVVE_CLINICAL_ALERT_KINDS.has(kind as WavveClinicalAlertKind);
+}
 
 @Injectable()
 export class AeroSenseTcpServerService implements OnModuleInit, OnModuleDestroy {
@@ -131,8 +141,15 @@ export class AeroSenseTcpServerService implements OnModuleInit, OnModuleDestroy 
       return;
     }
 
-    if (frame.protocol !== 'wavve' || frame.functionCode !== 0x03e8) return;
+    if (frame.protocol !== 'wavve') return;
+    if (frame.functionCode === 0x03e8) {
+      await this.events.handleWavveVital(session, decodeWavveVitalData(frame.data), Date.now());
+      return;
+    }
 
-    await this.events.handleWavveVital(session, decodeWavveVitalData(frame.data), Date.now());
+    const alert = decodeWavveAlertEvent(frame);
+    if (alert && isWavveClinicalAlertKind(alert.kind)) {
+      await this.events.handleWavveClinicalAlert(session, alert.kind, Date.now());
+    }
   }
 }

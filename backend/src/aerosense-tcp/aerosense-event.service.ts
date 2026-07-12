@@ -13,6 +13,15 @@ export interface AeroSenseSession {
 }
 
 const FALL_GRACE_MS = 10_000;
+const WAVVE_ALERT_DEBOUNCE_SEC = 300;
+
+export type WavveClinicalAlertKind =
+  | 'vital.no_breath'
+  | 'vital.low_breath'
+  | 'vital.high_breath'
+  | 'vital.no_heart'
+  | 'vital.low_heart'
+  | 'vital.high_heart';
 
 @Injectable()
 export class AeroSenseEventService {
@@ -45,6 +54,45 @@ export class AeroSenseEventService {
         heart_rate_bpm: vital.heartRateBpm,
         resp_rate_brpm: vital.respirationRateBrpm,
         signal_quality: 1,
+      }),
+    );
+  }
+
+  async handleWavveClinicalAlert(
+    session: AeroSenseSession,
+    subtype: WavveClinicalAlertKind,
+    timestamp: number,
+  ): Promise<void> {
+    const debounceKey = `wavve:alert:${session.deviceId}:${subtype}`;
+    const acquired = await this.redis.set(debounceKey, '1', 'EX', WAVVE_ALERT_DEBOUNCE_SEC, 'NX');
+    if (acquired !== 'OK') return;
+
+    const alert = await this.prisma.alertEvent.create({
+      data: {
+        deviceId: session.deviceId,
+        patientId: session.patientId,
+        type: AlertType.vital_anomaly,
+        status: AlertStatus.dispatched,
+        notes: `AeroSense Wavve alert: ${subtype}`,
+        triggeredAt: new Date(timestamp),
+      },
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        actorId: session.patientId,
+        action: 'alert.wavve_vital_anomaly',
+        resourceType: 'alert_event',
+        resourceId: alert.id,
+      },
+    });
+    await this.redis.publish(
+      'alerts:caregiver',
+      JSON.stringify({
+        type: subtype,
+        alertId: alert.id,
+        patientId: session.patientId,
+        timestamp: new Date(timestamp).toISOString(),
+        source: 'wavve',
       }),
     );
   }
