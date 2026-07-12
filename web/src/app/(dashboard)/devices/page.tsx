@@ -167,6 +167,9 @@ export default function DevicesPage() {
                   Serial
                 </th>
                 <th className="px-4 py-3 text-left font-medium text-gray-500 text-xs uppercase tracking-wide">
+                  Source
+                </th>
+                <th className="px-4 py-3 text-left font-medium text-gray-500 text-xs uppercase tracking-wide">
                   Room
                 </th>
                 <th className="px-4 py-3 text-left font-medium text-gray-500 text-xs uppercase tracking-wide">
@@ -207,6 +210,16 @@ export default function DevicesPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-gray-700">{device.serial}</td>
+                    <td className="px-4 py-3 text-xs text-gray-600">
+                      {device.transport === 'aerosense_tcp' ? (
+                        <div>
+                          <div className="font-medium text-gray-800">AeroSense {device.vendor === 'wavve' ? 'Wavve' : 'Assure'} - TCP</div>
+                          <div className="font-mono text-[11px] text-gray-400">{device.externalId ?? 'Radar ID pending'}</div>
+                        </div>
+                      ) : (
+                        <span>MQTT</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <RoomLabelEditor
                         deviceId={device.id}

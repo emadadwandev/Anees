@@ -18,6 +18,9 @@ export type VitalMetric = 'hr' | 'rr' | 'both';
 export interface Device {
   id: string;
   serial: string;
+  transport?: 'mqtt' | 'aerosense_tcp';
+  vendor?: string | null;
+  externalId?: string | null;
   firmwareVersion: string;
   roomLabel: string;
   status: DeviceStatus;
