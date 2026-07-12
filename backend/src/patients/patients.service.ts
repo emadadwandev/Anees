@@ -17,7 +17,6 @@ export class PatientsService {
         patient: {
           include: {
             devices: true,
-            profile: { select: { age: true } },
             alertEvents: {
               where: { status: { in: ['dispatched', 'acknowledged', 'pending_cancellation'] } },
               orderBy: { triggeredAt: 'desc' },
@@ -38,7 +37,7 @@ export class PatientsService {
         return {
           id: p.id,
           name: `${p.firstName} ${p.lastName}`,
-          age: (p as any).profile?.age ?? 0,
+          age: 0,
           room: p.devices[0]?.roomLabel ?? '',
           hr: live?.heart_rate_bpm ?? null,
           rr: live?.resp_rate_brpm ?? null,

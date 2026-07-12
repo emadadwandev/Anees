@@ -26,7 +26,7 @@ export class ReportsController {
   ) {
     await this.patientsService.getById(patientId, user.id);
 
-    const rows = await this.patientsService.getVitalHistory(patientId, range, '1 minute');
+    const rows = await this.patientsService.getVitalHistory(patientId, range);
 
     const header = 'bucket,heart_rate_bpm,resp_rate_brpm,signal_quality\n';
     const body = (rows as any[])
