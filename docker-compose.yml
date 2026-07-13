@@ -93,6 +93,7 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD:-anees_redis_dev}@redis:6379
       MQTT_BROKER_URL: mqtt://hivemq:1883
       NODE_ENV: development
+    command: sh -c "npx prisma generate && npx nest start --watch"
     ports:
       - "3000:3000"   # exposed for physical mobile devices (use host IP, not localhost)
       - "8899:8899"   # AeroSense Assure/Wavve direct TCP sensor ingress
