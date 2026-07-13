@@ -80,6 +80,14 @@ export class MetricsService implements OnModuleInit {
     registers: [this.registry],
   });
 
+  readonly tcpCommandDuration = new Histogram({
+    name: 'anees_tcp_command_duration_seconds',
+    help: 'AeroSense TCP command round-trip duration by protocol, function code, and result',
+    labelNames: ['protocol', 'function_code', 'result'],
+    buckets: [0.01, 0.05, 0.1, 0.5, 1, 5, 10],
+    registers: [this.registry],
+  });
+
   onModuleInit() {
     collectDefaultMetrics({ register: this.registry });
   }

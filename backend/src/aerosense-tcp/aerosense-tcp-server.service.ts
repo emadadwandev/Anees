@@ -23,6 +23,7 @@ function isWavveClinicalAlertKind(kind: string): kind is WavveClinicalAlertKind 
 export class AeroSenseTcpServerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AeroSenseTcpServerService.name);
   private readonly sockets = new Set<Socket>();
+  private readonly socketProtocols = new Map<Socket, 'assure' | 'wavve'>();
   private allowedNetworks?: BlockList;
   private server?: Server;
 
@@ -93,6 +94,9 @@ export class AeroSenseTcpServerService implements OnModuleInit, OnModuleDestroy 
     socket.once('timeout', () => socket.destroy());
     socket.once('close', () => {
       this.sockets.delete(socket);
+      const protocol = this.socketProtocols.get(socket);
+      if (protocol) this.metrics?.tcpConnectionsActive.dec({ protocol });
+      this.socketProtocols.delete(socket);
       this.sessions.unregister(socket);
     });
     socket.on('error', (error) => this.logger.warn(error, 'AeroSense TCP socket error'));
@@ -143,6 +147,10 @@ export class AeroSenseTcpServerService implements OnModuleInit, OnModuleDestroy 
 
   private async handleFrame(socket: Socket, wire: Buffer): Promise<void> {
     const frame = decodeFrame(wire);
+    if (!this.socketProtocols.has(socket)) {
+      this.socketProtocols.set(socket, frame.protocol);
+      this.metrics?.tcpConnectionsActive.inc({ protocol: frame.protocol });
+    }
     const labels = { protocol: frame.protocol, function_code: `0x${frame.functionCode.toString(16).padStart(4, '0')}` };
     const startedAt = performance.now();
     this.metrics?.tcpFramesReceived.inc(labels);

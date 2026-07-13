@@ -228,6 +228,38 @@ describe('AeroSense TCP listener configuration', () => {
     await service.stop();
   });
 
+  it('tracks an active connection after its protocol is identified and removes it on disconnect', async () => {
+    const sensorSession = {
+      deviceId: '7b1c8f21-bd66-4a81-8b9f-620e5fed2c76',
+      patientId: 'ce54a4f9-50ad-4527-8652-1edc5daec281',
+    };
+    const sessions = { unregister: jest.fn(), getSession: jest.fn().mockReturnValue(sensorSession) };
+    let resolveHandled!: () => void;
+    const handled = new Promise<void>((resolve) => { resolveHandled = resolve; });
+    const events = { handleWavveVital: jest.fn<() => Promise<void>>().mockImplementation(async () => resolveHandled()) };
+    const metrics = {
+      tcpConnectionsActive: { inc: jest.fn(), dec: jest.fn() },
+      tcpFramesReceived: { inc: jest.fn() },
+      tcpHandlerDuration: { observe: jest.fn() },
+      tcpFramesRejected: { inc: jest.fn() },
+    };
+    const config = { get: (key: string) => ({ TCP_BIND_HOST: '127.0.0.1', TCP_PORT: 0, TCP_IDLE_TIMEOUT_MS: 30_000 }[key]) };
+    const service = new AeroSenseTcpServerService(config as never, sessions as never, events as never, metrics as never);
+    const port = await service.start();
+    const socket = createConnection({ host: '127.0.0.1', port });
+
+    await new Promise<void>((resolve, reject) => { socket.once('connect', resolve); socket.once('error', reject); });
+    socket.write(wavveVitalFrame());
+    await handled;
+    expect(metrics.tcpConnectionsActive.inc).toHaveBeenCalledWith({ protocol: 'wavve' });
+
+    const closed = new Promise<void>((resolve) => socket.once('close', resolve));
+    socket.end();
+    await closed;
+    expect(metrics.tcpConnectionsActive.dec).toHaveBeenCalledWith({ protocol: 'wavve' });
+    await service.stop();
+  });
+
   it('acknowledges an Assure fall after it enters the alert workflow', async () => {
     const sensorSession = {
       deviceId: '7b1c8f21-bd66-4a81-8b9f-620e5fed2c76',

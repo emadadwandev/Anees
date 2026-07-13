@@ -174,6 +174,80 @@
           "legendFormat": ""
         }
       ]
+    },
+    {
+      "id": 9,
+      "title": "AeroSense TCP Active Sensors",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "expr": "sum by (protocol) (anees_tcp_connections_active)",
+          "legendFormat": "{{protocol}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 10,
+      "title": "AeroSense Rejected Frames (1h)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "expr": "sum by (protocol, reason) (increase(anees_tcp_frames_rejected_total[1h]))",
+          "legendFormat": "{{protocol}}: {{reason}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "AeroSense TCP Frames / sec",
+      "type": "timeseries",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "expr": "sum by (protocol, function_code) (rate(anees_tcp_frames_received_total[1m]))",
+          "legendFormat": "{{protocol}} {{function_code}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "id": 12,
+      "title": "AeroSense Vital Handler Latency (p95)",
+      "type": "timeseries",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(anees_tcp_handler_duration_seconds_bucket{protocol=\"wavve\",function_code=\"0x03e8\"}[5m])))",
+          "legendFormat": "Wavve vitals p95"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 13,
+      "title": "AeroSense Offline Device Events",
+      "type": "logs",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 32 },
+      "datasource": { "type": "loki", "uid": "${loki_datasource}" },
+      "targets": [
+        {
+          "expr": "{service=\"backend\"} |= \"device_offline\" |= \"aerosense_tcp\"",
+          "legendFormat": ""
+        }
+      ]
     }
   ],
   "templating": {

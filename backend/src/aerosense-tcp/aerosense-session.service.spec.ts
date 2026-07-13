@@ -94,6 +94,8 @@ describe('AeroSenseSessionService', () => {
         { get: () => 5_000 } as never,
         redis as never,
       );
+      const logger = { log: jest.fn() };
+      (sessions as any).logger = logger;
       const socket = {} as Socket;
       (sessions as any).sessions.set(socket, { deviceId, patientId: 'ce54a4f9-50ad-4527-8652-1edc5daec281' });
 
@@ -102,13 +104,18 @@ describe('AeroSenseSessionService', () => {
 
       expect(prisma.device.update).toHaveBeenCalledWith({ where: { id: deviceId }, data: { status: 'offline' } });
       expect(redis.publish).toHaveBeenCalledWith('alerts:caregiver', expect.stringContaining('system.device_offline'));
+      expect(logger.log).toHaveBeenCalledWith(
+        expect.objectContaining({ event: 'device_offline', deviceId, source: 'aerosense_tcp' }),
+        'AeroSense device offline',
+      );
     } finally {
       jest.useRealTimers();
     }
   });
 
   it('sends a command through the active device socket and resolves its matching response', async () => {
-    const sessions = new AeroSenseSessionService({} as never, {} as never, { get: () => 5_000 } as never, {} as never);
+    const metrics = { tcpCommandDuration: { observe: jest.fn() } };
+    const sessions = new AeroSenseSessionService({} as never, {} as never, { get: () => 5_000 } as never, {} as never, metrics as never);
     const socket = { write: jest.fn() } as unknown as Socket;
     const response = {
       protocol: 'wavve' as const, type: 0 as const, command: 2 as const, requestId: 44,
@@ -123,5 +130,9 @@ describe('AeroSenseSessionService', () => {
     expect(socket.write).toHaveBeenCalledTimes(1);
     expect(sessions.resolveCommandResponse(socket, response)).toBe(true);
     await expect(pending).resolves.toEqual(response);
+    expect(metrics.tcpCommandDuration.observe).toHaveBeenCalledWith(
+      { protocol: 'wavve', function_code: '0x03e9', result: 'succeeded' },
+      expect.any(Number),
+    );
   });
 });

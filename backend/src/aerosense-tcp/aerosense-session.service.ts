@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { DeviceStatus } from '@prisma/client';
@@ -6,6 +6,7 @@ import Redis from 'ioredis';
 import { Socket } from 'net';
 import { Config } from '../config/config.schema';
 import { DevicesService } from '../devices/devices.service';
+import { MetricsService } from '../metrics/metrics.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AeroSenseFrame } from './protocol/aerosense-frame';
 import { encodeCommandRequest } from './protocol/frame-codec';
@@ -13,6 +14,7 @@ import type { AeroSenseSession } from './aerosense-event.service';
 
 @Injectable()
 export class AeroSenseSessionService {
+  private readonly logger = new Logger(AeroSenseSessionService.name);
   private readonly sessions = new Map<Socket, AeroSenseSession>();
   private readonly deviceSockets = new Map<string, Socket>();
   private readonly offlineTimers = new Map<string, NodeJS.Timeout>();
@@ -23,6 +25,7 @@ export class AeroSenseSessionService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService<Config>,
     @InjectRedis() private readonly redis: Redis,
+    private readonly metrics?: MetricsService,
   ) {}
 
   getDeviceId(socket: Socket): string | undefined {
@@ -72,10 +75,24 @@ export class AeroSenseSessionService {
   }
 
   sendCommand(deviceId: string, frame: Pick<AeroSenseFrame, 'protocol' | 'requestId' | 'timeoutOrStatus' | 'functionCode' | 'data'>): Promise<AeroSenseFrame> {
+    const startedAt = performance.now();
+    const observe = (result: 'succeeded' | 'failed') => {
+      this.metrics?.tcpCommandDuration.observe({
+        protocol: frame.protocol,
+        function_code: `0x${frame.functionCode.toString(16).padStart(4, '0')}`,
+        result,
+      }, (performance.now() - startedAt) / 1000);
+    };
     const socket = this.deviceSockets.get(deviceId);
-    if (!socket || socket.destroyed) return Promise.reject(new Error('AeroSense device is not connected'));
+    if (!socket || socket.destroyed) {
+      observe('failed');
+      return Promise.reject(new Error('AeroSense device is not connected'));
+    }
     const key = `${deviceId}:${frame.requestId}`;
-    if (this.pendingCommands.has(key)) return Promise.reject(new Error('AeroSense command request ID is already pending'));
+    if (this.pendingCommands.has(key)) {
+      observe('failed');
+      return Promise.reject(new Error('AeroSense command request ID is already pending'));
+    }
 
     return new Promise<AeroSenseFrame>((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -84,7 +101,16 @@ export class AeroSenseSessionService {
       }, frame.timeoutOrStatus);
       this.pendingCommands.set(key, { socket, resolve, reject, timer });
       socket.write(encodeCommandRequest(frame));
-    });
+    }).then(
+      (response) => {
+        observe('succeeded');
+        return response;
+      },
+      (error: Error) => {
+        observe('failed');
+        throw error;
+      },
+    );
   }
 
   resolveCommandResponse(socket: Socket, frame: AeroSenseFrame): boolean {
@@ -110,6 +136,10 @@ export class AeroSenseSessionService {
     await this.prisma.systemEvent.create({
       data: { deviceId: session.deviceId, type: 'device_offline', payload: { source: 'aerosense_tcp' } },
     });
+    this.logger.log(
+      { event: 'device_offline', deviceId: session.deviceId, patientId: session.patientId, source: 'aerosense_tcp' },
+      'AeroSense device offline',
+    );
     await this.redis.publish('alerts:caregiver', JSON.stringify({
       type: 'system.device_offline', deviceId: session.deviceId, patientId: session.patientId,
       lastSeen: new Date().toISOString(), source: 'aerosense_tcp',

@@ -207,6 +207,7 @@ model AuditLog {
   resourceType String   @map("resource_type")
   resourceId   String   @map("resource_id")
   ipAddress    String?  @map("ip_address")
+  details      Json?
   timestamp    DateTime @default(now())
 
   actor User @relation(fields: [actorId], references: [id])

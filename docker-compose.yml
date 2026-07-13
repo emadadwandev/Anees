@@ -99,6 +99,7 @@ services:
     volumes:
       - ./backend/src:/app/src
       - ./backend/prisma:/app/prisma
+      - ./backend/test:/app/test
     networks:
       - anees-net
     depends_on:
