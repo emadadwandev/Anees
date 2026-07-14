@@ -71,3 +71,15 @@ docker exec anees-backend sh -lc 'npm test -- --runInBand'
 ```
 
 Confirm `admin.localhost` shows the super-admin login, `web.localhost` remains the caregiver application, and an admin/caregiver token receives `403` from `/v1/super-admin/*`.
+
+## Acceptance evidence (2026-07-14)
+
+Verified in the local Docker development stack:
+
+- `docker compose config` — PASS; `admin-web` is on `anees-net` and Traefik has the `admin.localhost` router.
+- Backend unit suite — PASS, 33 suites / 103 tests; `npm run build` — PASS.
+- `super-admin.e2e-spec.ts` — PASS, provisioning, UUID/assignment state, lifecycle audit, and admin `403`.
+- `aerosense-tcp.e2e-spec.ts` — PASS, Wavve registration/vital persistence and live cache.
+- `mqtt-pipeline.e2e-spec.ts` — PASS, DSP persistence, DLQ rejection, and heartbeat.
+- Admin web — PASS, 3 Vitest files / 4 tests, TypeScript check, and standalone Next build.
+- `curl -H 'Host: admin.localhost' http://127.0.0.1/` — `307 Location: /login` when unauthenticated.
