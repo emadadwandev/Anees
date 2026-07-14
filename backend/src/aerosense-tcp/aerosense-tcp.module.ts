@@ -11,6 +11,6 @@ import { AeroSenseTcpServerService } from './aerosense-tcp-server.service';
   imports: [BullModule.registerQueue({ name: 'fall-alert' }), DevicesModule],
   providers: [AeroSenseTcpServerService, AeroSenseSessionService, AeroSenseEventService, AeroSenseCommandService],
   controllers: [AeroSenseCommandController],
-  exports: [AeroSenseTcpServerService],
+  exports: [AeroSenseTcpServerService, AeroSenseCommandService],
 })
 export class AeroSenseTcpModule {}

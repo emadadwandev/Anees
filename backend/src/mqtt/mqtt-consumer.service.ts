@@ -21,6 +21,10 @@ export class MqttConsumerService implements OnModuleInit, OnModuleDestroy {
     @InjectQueue('dlq') private readonly dlqQueue: Queue,
   ) {}
 
+  isConnected(): boolean {
+    return this.client?.connected ?? false;
+  }
+
   onModuleInit() {
     const brokerUrl = this.config.get('MQTT_BROKER_URL');
     this.client = mqtt.connect(brokerUrl, {

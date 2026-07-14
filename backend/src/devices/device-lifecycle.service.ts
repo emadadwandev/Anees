@@ -60,6 +60,11 @@ export class DeviceLifecycleService {
     return devices.map((device) => this.sanitize(device));
   }
 
+  async get(deviceId: string) {
+    const device = await this.findDevice(deviceId);
+    return this.sanitize(device);
+  }
+
   async create(input: CreateManagedDeviceInput, actorId: string) {
     const externalId = input.externalId?.trim().toUpperCase() || undefined;
     const device = await this.prisma.device.create({

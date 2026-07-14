@@ -26,6 +26,7 @@ import { MetricsModule } from './metrics/metrics.module';
 import { AdminModule } from './admin/admin.module';
 import { CaregiverModule } from './caregiver/caregiver.module';
 import { AeroSenseTcpModule } from './aerosense-tcp/aerosense-tcp.module';
+import { SuperAdminModule } from './super-admin/super-admin.module';
 
 @Module({
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
@@ -102,6 +103,7 @@ import { AeroSenseTcpModule } from './aerosense-tcp/aerosense-tcp.module';
     AdminModule,
     CaregiverModule,
     AeroSenseTcpModule,
+    SuperAdminModule,
   ],
 })
 export class AppModule {}

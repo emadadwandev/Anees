@@ -29,6 +29,10 @@ export class HardwareDeviceService implements OnModuleInit, OnModuleDestroy {
     @InjectQueue('fall-alert') private readonly fallAlertQueue: Queue,
   ) {}
 
+  isConnected(): boolean {
+    return this.client?.connected ?? false;
+  }
+
   onModuleInit() {
     const brokerUrl = this.config.get('MQTT_BROKER_URL');
     this.client = mqtt.connect(brokerUrl, {

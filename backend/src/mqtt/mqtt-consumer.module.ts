@@ -14,6 +14,6 @@ import { MetricsModule } from '../metrics/metrics.module';
     MetricsModule,
   ],
   providers: [MqttConsumerService, HardwareDeviceService, RadarCommandService],
-  exports: [RadarCommandService],
+  exports: [RadarCommandService, MqttConsumerService, HardwareDeviceService],
 })
 export class MqttConsumerModule {}
