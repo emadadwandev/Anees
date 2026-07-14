@@ -13,6 +13,11 @@ http:
       entryPoints: [web]
       service: web
 
+    admin-web:
+      rule: "Host(`admin.localhost`)"
+      entryPoints: [web]
+      service: admin-web
+
     # ─── DSP Service ──────────────────────────────────────────────────────────
     dsp:
       rule: "Host(`dsp.localhost`)"
@@ -61,6 +66,11 @@ http:
       loadBalancer:
         servers:
           - url: "http://web:3002"
+
+    admin-web:
+      loadBalancer:
+        servers:
+          - url: "http://admin-web:3003"
 
     dsp:
       loadBalancer:

@@ -125,6 +125,27 @@ services:
     depends_on:
       - backend
 
+  # ─── Super-admin Sensor Console ─────────────────────────────────────────────
+  admin-web:
+    build:
+      context: ./admin-web
+      dockerfile: Dockerfile
+      target: development
+    container_name: anees-admin-web
+    restart: unless-stopped
+    environment:
+      ADMIN_NEXTAUTH_SECRET: ${ADMIN_NEXTAUTH_SECRET:-change_me_admin_nextauth_secret}
+      ADMIN_NEXTAUTH_URL: ${ADMIN_NEXTAUTH_URL:-http://admin.localhost}
+      ADMIN_AUTH_COOKIE: ${ADMIN_AUTH_COOKIE:-anees-admin.session-token}
+      INTERNAL_API_URL: ${INTERNAL_API_URL:-http://backend:3000}
+      NODE_ENV: development
+    volumes:
+      - ./admin-web/src:/app/src
+    networks:
+      - anees-net
+    depends_on:
+      - backend
+
   dsp-service:
     build:
       context: ./dsp-service
