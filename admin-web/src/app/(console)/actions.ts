@@ -1,11 +1,13 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 import { getAdminApi } from '@/lib/api';
+import { getCreatedDeviceRedirectPath } from '@/lib/device-navigation';
 
 export async function createDeviceAction(formData: FormData) {
   const api = await getAdminApi();
-  await api.createDevice({
+  const device = await api.createDevice({
     serial: String(formData.get('serial') ?? ''),
     firmwareVersion: String(formData.get('firmwareVersion') ?? ''),
     roomLabel: String(formData.get('roomLabel') ?? ''),
@@ -16,6 +18,7 @@ export async function createDeviceAction(formData: FormData) {
   });
   revalidatePath('/');
   revalidatePath('/devices');
+  redirect(getCreatedDeviceRedirectPath(device.id));
 }
 
 export async function transitionDeviceAction(deviceId: string, formData: FormData) {
