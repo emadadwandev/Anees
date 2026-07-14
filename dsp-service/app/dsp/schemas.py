@@ -13,7 +13,9 @@ class PointCloudEntry(BaseModel):
 
 
 class MmWavePayload(BaseModel):
-    model_config = ConfigDict(strict=True, extra="forbid")
+    # HTTP JSON transports UUIDs as strings; keep strict point-cloud values but
+    # allow Pydantic to parse the UUID fields from their wire representation.
+    model_config = ConfigDict(extra="forbid")
 
     device_id: UUID
     patient_id: UUID

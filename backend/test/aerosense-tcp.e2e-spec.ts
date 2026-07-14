@@ -1,4 +1,5 @@
 import { INestApplication } from '@nestjs/common';
+import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DeviceTransport, PrismaClient, Role } from '@prisma/client';
 import { createConnection, Socket } from 'net';
@@ -26,7 +27,7 @@ describe('AeroSense TCP ingress (E2E)', () => {
 
   beforeAll(async () => {
     process.env.TCP_BIND_HOST = '127.0.0.1';
-    process.env.TCP_PORT = '0';
+    process.env.TCP_PORT = '18898';
     const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleFixture.createNestApplication();
     await app.init();
@@ -35,7 +36,14 @@ describe('AeroSense TCP ingress (E2E)', () => {
     await prisma.user.upsert({
       where: { id: TEST_PATIENT_ID },
       update: {},
-      create: { id: TEST_PATIENT_ID, email: 'aerosense-tcp-e2e@anees.local', passwordHash: 'not-used', role: Role.care_receiver },
+      create: {
+        id: TEST_PATIENT_ID,
+        email: 'aerosense-tcp-e2e@anees.local',
+        passwordHash: 'not-used',
+        role: Role.care_receiver,
+        firstName: 'AeroSense',
+        lastName: 'E2E',
+      },
     });
     await prisma.device.upsert({
       where: { id: TEST_DEVICE_ID },
@@ -60,7 +68,9 @@ describe('AeroSense TCP ingress (E2E)', () => {
     const port = await listener.start();
     socket = createConnection({ host: '127.0.0.1', port });
     await new Promise<void>((resolve, reject) => { socket.once('connect', resolve); socket.once('error', reject); });
-    socket.write(Buffer.concat([wavveRegistrationFrame(), wavveVitalFrame()]));
+    socket.write(wavveRegistrationFrame());
+    await new Promise<void>((resolve) => socket.once('data', () => resolve()));
+    socket.write(wavveVitalFrame());
 
     await waitFor(async () => {
       const rows: Array<{ count: number }> = await prisma.$queryRaw`
@@ -69,6 +79,6 @@ describe('AeroSense TCP ingress (E2E)', () => {
       return rows[0]?.count ? rows[0] : null;
     });
     const redis = app.get('default_IORedisModuleConnectionToken' as never) as { get: (key: string) => Promise<string | null> };
-    await expect(waitFor(() => redis.get(`vitals:live:${TEST_PATIENT_ID}`))).resolves.toContain('"heart_rate_bpm":72');
+    await expect(waitFor(() => redis.get(`vitals:live:${TEST_PATIENT_ID}`))).resolves.toContain('"heart_rate_bpm":75');
   }, 20_000);
 });

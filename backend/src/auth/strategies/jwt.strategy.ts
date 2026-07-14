@@ -23,7 +23,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   async validate(payload: JwtPayload) {
     if (!payload.sub || !payload.role) throw new UnauthorizedException();
-    // Return sub (not id) — controllers read req.user.sub
-    return { sub: payload.sub, role: payload.role };
+    // Keep both aliases: newer controllers use id, existing gateways use sub.
+    return { id: payload.sub, sub: payload.sub, role: payload.role };
   }
 }

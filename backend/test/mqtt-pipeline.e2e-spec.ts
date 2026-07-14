@@ -6,8 +6,9 @@
  */
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
+import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import * as mqtt from 'mqtt';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Role } from '@prisma/client';
 import { AppModule } from '../src/app.module';
 
 const MQTT_BROKER = process.env.MQTT_BROKER_URL ?? 'mqtt://localhost:1883';
@@ -61,6 +62,19 @@ describe('MQTT → DSP → TimescaleDB Pipeline (P2-006)', () => {
     prisma = new PrismaClient();
     await prisma.$connect();
 
+    await prisma.user.upsert({
+      where: { id: TEST_PATIENT_ID },
+      update: {},
+      create: {
+        id: TEST_PATIENT_ID,
+        email: 'mqtt-pipeline-e2e@anees.local',
+        passwordHash: 'not-used',
+        role: Role.care_receiver,
+        firstName: 'MQTT',
+        lastName: 'E2E',
+      },
+    });
+
     // Ensure test device exists
     await prisma.device.upsert({
       where: { id: TEST_DEVICE_ID },
@@ -76,7 +90,7 @@ describe('MQTT → DSP → TimescaleDB Pipeline (P2-006)', () => {
 
     mqttClient = mqtt.connect(MQTT_BROKER, { reconnectPeriod: 0 });
     await new Promise<void>((resolve, reject) => {
-      mqttClient.on('connect', resolve);
+      mqttClient.on('connect', () => resolve());
       mqttClient.on('error', reject);
       setTimeout(() => reject(new Error('MQTT connect timeout')), 5000);
     });
@@ -84,6 +98,8 @@ describe('MQTT → DSP → TimescaleDB Pipeline (P2-006)', () => {
 
   afterAll(async () => {
     mqttClient.end();
+    await prisma.device.delete({ where: { id: TEST_DEVICE_ID } }).catch(() => {});
+    await prisma.user.delete({ where: { id: TEST_PATIENT_ID } }).catch(() => {});
     await prisma.$disconnect();
     await app.close();
   });
@@ -112,9 +128,10 @@ describe('MQTT → DSP → TimescaleDB Pipeline (P2-006)', () => {
   }, 10000);
 
   it('should reject invalid MQTT payload (missing point_cloud) and route to DLQ', async () => {
+    const invalidPublishTimestamp = Date.now();
     const invalidPayload = {
       device_id: TEST_DEVICE_ID,
-      timestamp: Date.now(),
+      timestamp: invalidPublishTimestamp,
       frame_seq: 999,
       firmware_version: '2.4.1',
       // point_cloud intentionally missing
@@ -132,8 +149,8 @@ describe('MQTT → DSP → TimescaleDB Pipeline (P2-006)', () => {
     const rows: any[] = await prisma.$queryRaw`
       SELECT COUNT(*)::int AS count
       FROM vital_readings
-      WHERE device_id = ${TEST_DEVICE_ID}::uuid
-        AND time >= NOW() - INTERVAL '2 seconds'
+        WHERE device_id = ${TEST_DEVICE_ID}::uuid
+        AND time >= to_timestamp(${invalidPublishTimestamp / 1000})
     `;
     // Should be 0 — no new vital from invalid payload
     expect(rows[0]?.count).toBe(0);

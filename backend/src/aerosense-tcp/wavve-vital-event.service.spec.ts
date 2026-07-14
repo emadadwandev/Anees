@@ -22,7 +22,10 @@ const vital: WavveVitalData = {
 describe('AeroSenseEventService', () => {
   it('persists Wavve diagnostics and publishes a complete vital reading', async () => {
     const prisma = { $executeRaw: jest.fn<() => Promise<number>>().mockResolvedValue(1) };
-    const redis = { publish: jest.fn<(channel: string, payload: string) => Promise<number>>().mockResolvedValue(1) };
+    const redis = {
+      publish: jest.fn<(channel: string, payload: string) => Promise<number>>().mockResolvedValue(1),
+      set: jest.fn<(...args: unknown[]) => Promise<string>>().mockResolvedValue('OK'),
+    };
     const service = new AeroSenseEventService(prisma as never, redis as never, {} as never);
 
     await service.handleWavveVital(session, vital, 1_720_672_000_000);
@@ -39,11 +42,20 @@ describe('AeroSenseEventService', () => {
         signal_quality: 1,
       }),
     );
+    expect(redis.set).toHaveBeenCalledWith(
+      `vitals:live:${session.patientId}`,
+      expect.stringContaining('"heart_rate_bpm":72'),
+      'EX',
+      120,
+    );
   });
 
   it('stores partial Wavve readings without publishing clinical vitals', async () => {
     const prisma = { $executeRaw: jest.fn<() => Promise<number>>().mockResolvedValue(1) };
-    const redis = { publish: jest.fn<(channel: string, payload: string) => Promise<number>>().mockResolvedValue(1) };
+    const redis = {
+      publish: jest.fn<(channel: string, payload: string) => Promise<number>>().mockResolvedValue(1),
+      set: jest.fn<(...args: unknown[]) => Promise<string>>().mockResolvedValue('OK'),
+    };
     const service = new AeroSenseEventService(prisma as never, redis as never, {} as never);
 
     await service.handleWavveVital(session, { ...vital, validBit: 1 }, 1_720_672_000_000);

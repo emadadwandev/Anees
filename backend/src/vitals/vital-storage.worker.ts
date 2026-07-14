@@ -85,12 +85,12 @@ export class VitalStorageWorker implements OnModuleInit, OnModuleDestroy {
           to_timestamp(v.timestamp / 1000.0),
           v.device_id::uuid,
           v.patient_id::uuid,
-          v.heart_rate_bpm::smallint,
-          v.resp_rate_brpm::smallint,
+          ROUND(v.heart_rate_bpm)::smallint,
+          ROUND(v.resp_rate_brpm)::smallint,
           v.signal_quality::real
         FROM jsonb_to_recordset(${JSON.stringify(batch)}::jsonb)
           AS v(device_id text, patient_id text, timestamp bigint,
-               heart_rate_bpm int, resp_rate_brpm int, signal_quality float)
+               heart_rate_bpm numeric, resp_rate_brpm numeric, signal_quality float)
       `;
 
       // 2. Live cache (one key per patient, TTL 5 min) + device heartbeat

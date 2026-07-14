@@ -42,24 +42,25 @@ export class AeroSenseEventService {
         bed_signal_strength, valid_bit, body_move_energy, body_move_range
       ) VALUES (
         to_timestamp(${timestamp} / 1000.0), ${session.deviceId}::uuid, ${session.patientId}::uuid,
-        ${vital.breathCurve}, ${vital.heartCurve}, ${vital.targetDistanceM},
-        ${vital.bedSignalStrength}, ${vital.validBit}, ${vital.bodyMoveEnergy}, ${vital.bodyMoveRange}
+        to_jsonb(${vital.breathCurve}::double precision), to_jsonb(${vital.heartCurve}::double precision), ${vital.targetDistanceM},
+        ${vital.bedSignalStrength}, ${vital.validBit === 2}, ${vital.bodyMoveEnergy}, ${vital.bodyMoveRange}
       )
     `;
 
     if (vital.validBit !== 2 || !(await this.allowsClinicalProcessing(session))) return;
 
-    await this.redis.publish(
-      `vitals:${session.patientId}`,
-      JSON.stringify({
-        device_id: session.deviceId,
-        patient_id: session.patientId,
-        timestamp,
-        heart_rate_bpm: vital.heartRateBpm,
-        resp_rate_brpm: vital.respirationRateBrpm,
-        signal_quality: 1,
-      }),
-    );
+    const vitalsPayload = JSON.stringify({
+      device_id: session.deviceId,
+      patient_id: session.patientId,
+      timestamp,
+      heart_rate_bpm: vital.heartRateBpm,
+      resp_rate_brpm: vital.respirationRateBrpm,
+      signal_quality: 1,
+    });
+    await Promise.all([
+      this.redis.publish(`vitals:${session.patientId}`, vitalsPayload),
+      this.redis.set(`vitals:live:${session.patientId}`, vitalsPayload, 'EX', 120),
+    ]);
   }
 
   async handleWavveClinicalAlert(
