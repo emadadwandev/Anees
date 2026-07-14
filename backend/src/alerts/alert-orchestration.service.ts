@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Optional } from '@nestjs/common';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -6,6 +6,7 @@ import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { AlertType, AlertStatus, OcclusionStatus } from '@prisma/client';
 import { IntercomService } from '../intercom/intercom.service';
+import { DeviceIngressPolicyService } from '../devices/device-ingress-policy.service';
 
 @Injectable()
 export class AlertOrchestrationService implements OnModuleInit, OnModuleDestroy {
@@ -17,6 +18,7 @@ export class AlertOrchestrationService implements OnModuleInit, OnModuleDestroy 
     @InjectQueue('fall-alert') private readonly fallAlertQueue: Queue,
     private readonly prisma: PrismaService,
     private readonly intercom: IntercomService,
+    @Optional() private readonly policy?: DeviceIngressPolicyService,
   ) {}
 
   onModuleInit() {
@@ -48,6 +50,12 @@ export class AlertOrchestrationService implements OnModuleInit, OnModuleDestroy 
 
       const { device_id: deviceId, patient_id: patientId, timestamp, confidence } = event;
 
+      const device = await this.prisma.device.findUnique({
+        where: { id: deviceId },
+        select: { roomLabel: true, managementState: true, userId: true, deprovisionedAt: true },
+      });
+      if (this.policy && (!device || !this.policy.allowClinicalProcessing(device))) return;
+
       const alert = await this.prisma.alertEvent.create({
         data: {
           deviceId,
@@ -64,11 +72,6 @@ export class AlertOrchestrationService implements OnModuleInit, OnModuleDestroy 
           resourceType: 'alert_event',
           resourceId: alert.id,
         },
-      });
-
-      const device = await this.prisma.device.findUnique({
-        where: { id: deviceId },
-        select: { roomLabel: true },
       });
 
       // Delayed job — fires after 10s grace window if not cancelled by patient

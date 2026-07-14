@@ -33,4 +33,43 @@ describe('MqttConsumerService assignment handling', () => {
     expect(post).not.toHaveBeenCalled();
     post.mockRestore();
   });
+
+  it('suppresses disabled ingress and records only a bounded operational event', async () => {
+    const prisma = { systemEvent: { create: jest.fn<(...args: unknown[]) => Promise<unknown>>() } };
+    const devices = {
+      resolveDeviceById: jest.fn<(...args: unknown[]) => Promise<unknown>>()
+        .mockResolvedValue({ id: 'device-1', userId: 'patient-1', managementState: 'disabled', deprovisionedAt: null }),
+    };
+    const service = new MqttConsumerService(
+      { get: jest.fn() } as never,
+      devices as never,
+      {
+        mqttMessagesReceived: { inc: jest.fn() },
+        dspProcessDuration: { startTimer: jest.fn(() => jest.fn()) },
+        mqttForwardFailures: { inc: jest.fn() },
+      } as never,
+      { add: jest.fn() } as never,
+      prisma as never,
+      { acceptTelemetry: jest.fn().mockReturnValue(false), allowClinicalProcessing: jest.fn() } as never,
+    );
+
+    await (service as any).handleMessage(
+      'anees/devices/00000000-0000-0000-0000-000000000001/raw',
+      JSON.stringify({
+        device_id: '00000000-0000-0000-0000-000000000001',
+        timestamp: 1,
+        frame_seq: 1,
+        point_cloud: [{ x: 0, y: 0, z: 0, v: 0, snr: 0.5 }],
+        firmware_version: '1.0.0',
+      }),
+    );
+
+    expect(prisma.systemEvent.create).toHaveBeenCalledWith({
+      data: {
+        deviceId: 'device-1',
+        type: 'device.ingress_suppressed',
+        payload: { transport: 'mqtt', reason: 'disabled' },
+      },
+    });
+  });
 });

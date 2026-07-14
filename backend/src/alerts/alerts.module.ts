@@ -5,6 +5,7 @@ import { AlertsController } from './alerts.controller';
 import { AlertsProcessor } from './alerts.processor';
 import { AlertOrchestrationService } from './alert-orchestration.service';
 import { IntercomModule } from '../intercom/intercom.module';
+import { DevicesModule } from '../devices/devices.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { IntercomModule } from '../intercom/intercom.module';
       { name: 'push-notifications' },
     ),
     IntercomModule,
+    DevicesModule,
   ],
   providers: [AlertsService, AlertsProcessor, AlertOrchestrationService],
   controllers: [AlertsController],

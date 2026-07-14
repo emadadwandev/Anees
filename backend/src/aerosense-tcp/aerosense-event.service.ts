@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { InjectQueue } from '@nestjs/bullmq';
 import { AlertStatus, AlertType } from '@prisma/client';
@@ -7,6 +7,7 @@ import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { WavveAlertEvent } from './protocol/wavve-alert-codec';
 import { WavveVitalData } from './protocol/wavve-codec';
+import { DeviceIngressPolicyService } from '../devices/device-ingress-policy.service';
 
 export interface AeroSenseSession {
   deviceId: string;
@@ -30,6 +31,7 @@ export class AeroSenseEventService {
     private readonly prisma: PrismaService,
     @InjectRedis() private readonly redis: Redis,
     @InjectQueue('fall-alert') private readonly fallAlertQueue: Queue,
+    @Optional() private readonly policy?: DeviceIngressPolicyService,
   ) {}
 
   async handleWavveVital(session: AeroSenseSession, vital: WavveVitalData, timestamp: number): Promise<void> {
@@ -45,7 +47,7 @@ export class AeroSenseEventService {
       )
     `;
 
-    if (vital.validBit !== 2) return;
+    if (vital.validBit !== 2 || !(await this.allowsClinicalProcessing(session))) return;
 
     await this.redis.publish(
       `vitals:${session.patientId}`,
@@ -65,7 +67,7 @@ export class AeroSenseEventService {
     subtype: WavveClinicalAlertKind,
     timestamp: number,
   ): Promise<void> {
-    if (!session.patientId) return;
+    if (!session.patientId || !(await this.allowsClinicalProcessing(session))) return;
     const debounceKey = `wavve:alert:${session.deviceId}:${subtype}`;
     const acquired = await this.redis.set(debounceKey, '1', 'EX', WAVVE_ALERT_DEBOUNCE_SEC, 'NX');
     if (acquired !== 'OK') return;
@@ -105,7 +107,7 @@ export class AeroSenseEventService {
       await this.prisma.systemEvent.create({
         data: { deviceId: session.deviceId, type: 'wavve.bed_exit', payload: { patientId: session.patientId, source: 'wavve' } },
       });
-      if (session.patientId) {
+      if (session.patientId && await this.allowsClinicalProcessing(session)) {
         await this.redis.publish('alerts:caregiver', JSON.stringify({
           type: 'bed.exit', deviceId: session.deviceId, patientId: session.patientId,
           timestamp: new Date(timestamp).toISOString(), source: 'wavve',
@@ -129,7 +131,7 @@ export class AeroSenseEventService {
       VALUES (to_timestamp(${timestamp} / 1000.0), ${session.deviceId}::uuid, ${session.patientId}::uuid,
         ${eventType}, ${event.kind === 'bed.movement' ? event.energy : null}, ${JSON.stringify(coordinates)}::jsonb)
     `;
-    if (event.kind === 'bed.turn_over') {
+    if (event.kind === 'bed.turn_over' && await this.allowsClinicalProcessing(session)) {
       await this.redis.publish('alerts:caregiver', JSON.stringify({
         type: 'bed.turn_over', deviceId: session.deviceId, patientId: session.patientId,
         timestamp: new Date(timestamp).toISOString(), source: 'wavve',
@@ -142,7 +144,7 @@ export class AeroSenseEventService {
     position: { xM: number; yM: number },
     timestamp: number,
   ): Promise<void> {
-    if (!session.patientId) return;
+    if (!session.patientId || !(await this.allowsClinicalProcessing(session))) return;
     let alert = await this.prisma.alertEvent.findFirst({
       where: {
         deviceId: session.deviceId,
@@ -195,7 +197,7 @@ export class AeroSenseEventService {
   }
 
   async handleAssureFallElimination(session: AeroSenseSession): Promise<void> {
-    if (!session.patientId) return;
+    if (!session.patientId || !(await this.allowsClinicalProcessing(session))) return;
     const pendingAlert = await this.prisma.alertEvent.findFirst({
       where: {
         deviceId: session.deviceId,
@@ -281,5 +283,14 @@ export class AeroSenseEventService {
         ${'assure.position'}, ${JSON.stringify(position)}::jsonb
       )
     `;
+  }
+
+  private async allowsClinicalProcessing(session: AeroSenseSession): Promise<boolean> {
+    if (!this.policy) return Boolean(session.patientId);
+    const device = await this.prisma.device?.findUnique?.({
+      where: { id: session.deviceId },
+      select: { managementState: true, userId: true, deprovisionedAt: true },
+    });
+    return device ? this.policy.allowClinicalProcessing(device) : Boolean(session.patientId);
   }
 }

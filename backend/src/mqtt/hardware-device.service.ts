@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -11,6 +11,7 @@ import { MetricsService } from '../metrics/metrics.service';
 import { AlertStatus, AlertType, DeviceStatus } from '@prisma/client';
 import { RadarUpstreamMessageSchema } from './schemas/radar-event.schema';
 import { Config } from '../config/config.schema';
+import { DeviceIngressPolicyService } from '../devices/device-ingress-policy.service';
 
 const FALL_GRACE_MS = 10_000;
 const DWELL_DEBOUNCE_SEC = 600;
@@ -27,6 +28,7 @@ export class HardwareDeviceService implements OnModuleInit, OnModuleDestroy {
     private readonly metrics: MetricsService,
     @InjectRedis() private readonly redis: Redis,
     @InjectQueue('fall-alert') private readonly fallAlertQueue: Queue,
+    @Optional() private readonly policy?: DeviceIngressPolicyService,
   ) {}
 
   isConnected(): boolean {
@@ -93,18 +95,30 @@ export class HardwareDeviceService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    const acceptsTelemetry = this.policy
+      ? this.policy.acceptTelemetry(device)
+      : !device.deprovisionedAt && device.managementState !== 'disabled';
+    if (!acceptsTelemetry) {
+      await this.recordSuppressedIngress(device, 'disabled');
+      return;
+    }
+
     const params = msg.params;
 
     const results = await Promise.allSettled([
       this.handleOnlineStatus(device, params),
       this.handleHeartbeat(device, params),
       this.handleFirmwareVersion(device, params),
-      this.handleFallStatus(device, params),
-      this.handleDwellStatus(device, params),
-      this.handlePresenceMotion(device, params),
-      this.handleFallSensorMotion(device, params),
-      this.handleSleepRadarVitals(device, params),
-      this.handleSleepReport(device, params),
+      ...(this.policy?.allowClinicalProcessing(device) ?? Boolean(device.userId)
+        ? [
+            this.handleFallStatus(device, params),
+            this.handleDwellStatus(device, params),
+            this.handlePresenceMotion(device, params),
+            this.handleFallSensorMotion(device, params),
+            this.handleSleepRadarVitals(device, params),
+            this.handleSleepReport(device, params),
+          ]
+        : [this.recordSuppressedIngress(device, device.managementState === 'maintenance' ? 'maintenance' : 'unassigned')]),
     ]);
 
     for (const result of results) {
@@ -112,6 +126,17 @@ export class HardwareDeviceService implements OnModuleInit, OnModuleDestroy {
         this.logger.error({ err: result.reason }, 'Hardware handler error');
       }
     }
+  }
+
+  private async recordSuppressedIngress(device: { id: string }, reason: string) {
+    await this.prisma.systemEvent.create({
+      data: {
+        deviceId: device.id,
+        type: 'device.ingress_suppressed',
+        payload: { transport: 'mqtt_hardware', reason },
+      },
+    });
+    this.logger.debug({ deviceId: device.id, reason }, 'Hardware MQTT clinical ingress suppressed');
   }
 
   // ─── Online / Offline ────────────────────────────────────────────────────────

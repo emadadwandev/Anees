@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { DeviceStatus } from '@prisma/client';
@@ -11,6 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AeroSenseFrame } from './protocol/aerosense-frame';
 import { encodeCommandRequest } from './protocol/frame-codec';
 import type { AeroSenseSession } from './aerosense-event.service';
+import { DeviceIngressPolicyService } from '../devices/device-ingress-policy.service';
 
 @Injectable()
 export class AeroSenseSessionService {
@@ -26,6 +27,7 @@ export class AeroSenseSessionService {
     private readonly config: ConfigService<Config>,
     @InjectRedis() private readonly redis: Redis,
     private readonly metrics?: MetricsService,
+    @Optional() private readonly policy?: DeviceIngressPolicyService,
   ) {}
 
   getDeviceId(socket: Socket): string | undefined {
@@ -56,6 +58,19 @@ export class AeroSenseSessionService {
     const externalId = frame.data.subarray(isWavveRegistration ? 5 : 1).toString('hex').toUpperCase();
     const device = await this.devices.resolveAeroSenseDevice(externalId);
     if (!device) return false;
+    const acceptsTelemetry = this.policy
+      ? this.policy.acceptTelemetry(device)
+      : !device.deprovisionedAt && device.managementState !== 'disabled';
+    if (!acceptsTelemetry) {
+      await this.prisma.systemEvent?.create({
+        data: {
+          deviceId: device.id,
+          type: 'device.ingress_suppressed',
+          payload: { transport: 'aerosense_tcp', reason: 'disabled' },
+        },
+      });
+      return false;
+    }
 
     const offlineTimer = this.offlineTimers.get(device.id);
     if (offlineTimer) clearTimeout(offlineTimer);

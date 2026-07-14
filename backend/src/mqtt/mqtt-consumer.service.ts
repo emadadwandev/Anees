@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -8,6 +8,8 @@ import { MmWaveRawPayloadSchema } from './schemas/mmwave-payload.schema';
 import { DevicesService } from '../devices/devices.service';
 import { MetricsService } from '../metrics/metrics.service';
 import { Config } from '../config/config.schema';
+import { PrismaService } from '../prisma/prisma.service';
+import { DeviceIngressPolicyService } from '../devices/device-ingress-policy.service';
 
 @Injectable()
 export class MqttConsumerService implements OnModuleInit, OnModuleDestroy {
@@ -19,6 +21,8 @@ export class MqttConsumerService implements OnModuleInit, OnModuleDestroy {
     private readonly devicesService: DevicesService,
     private readonly metrics: MetricsService,
     @InjectQueue('dlq') private readonly dlqQueue: Queue,
+    @Optional() private readonly prisma?: PrismaService,
+    @Optional() private readonly policy?: DeviceIngressPolicyService,
   ) {}
 
   isConnected(): boolean {
@@ -77,6 +81,20 @@ export class MqttConsumerService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(`Unknown device UUID: ${payload.device_id}`);
       return;
     }
+    const acceptsTelemetry = this.policy
+      ? this.policy.acceptTelemetry(device)
+      : !device.deprovisionedAt && device.managementState !== 'disabled';
+    if (!acceptsTelemetry) {
+      await this.recordSuppressedIngress(device, 'disabled');
+      return;
+    }
+    const allowsClinical = this.policy
+      ? this.policy.allowClinicalProcessing(device)
+      : device.userId != null;
+    if (!allowsClinical) {
+      await this.recordSuppressedIngress(device, device.managementState === 'maintenance' ? 'maintenance' : 'unassigned');
+      return;
+    }
     if (!device.userId) {
       this.logger.debug(`Unassigned MQTT device ${payload.device_id} — skipping clinical DSP processing`);
       return;
@@ -103,5 +121,16 @@ export class MqttConsumerService implements OnModuleInit, OnModuleDestroy {
         },
       );
     }
+  }
+
+  private async recordSuppressedIngress(device: { id: string }, reason: string) {
+    await this.prisma?.systemEvent.create({
+      data: {
+        deviceId: device.id,
+        type: 'device.ingress_suppressed',
+        payload: { transport: 'mqtt', reason },
+      },
+    });
+    this.logger.debug({ deviceId: device.id, reason }, 'MQTT ingress suppressed before clinical processing');
   }
 }
