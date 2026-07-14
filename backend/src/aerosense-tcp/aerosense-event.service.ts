@@ -10,7 +10,7 @@ import { WavveVitalData } from './protocol/wavve-codec';
 
 export interface AeroSenseSession {
   deviceId: string;
-  patientId: string;
+  patientId: string | null;
 }
 
 const FALL_GRACE_MS = 10_000;
@@ -33,6 +33,7 @@ export class AeroSenseEventService {
   ) {}
 
   async handleWavveVital(session: AeroSenseSession, vital: WavveVitalData, timestamp: number): Promise<void> {
+    if (!session.patientId) return;
     await this.prisma.$executeRaw`
       INSERT INTO wavve_vital_details (
         time, device_id, patient_id, breath_curve, heart_curve, target_distance_m,
@@ -64,6 +65,7 @@ export class AeroSenseEventService {
     subtype: WavveClinicalAlertKind,
     timestamp: number,
   ): Promise<void> {
+    if (!session.patientId) return;
     const debounceKey = `wavve:alert:${session.deviceId}:${subtype}`;
     const acquired = await this.redis.set(debounceKey, '1', 'EX', WAVVE_ALERT_DEBOUNCE_SEC, 'NX');
     if (acquired !== 'OK') return;
@@ -103,10 +105,12 @@ export class AeroSenseEventService {
       await this.prisma.systemEvent.create({
         data: { deviceId: session.deviceId, type: 'wavve.bed_exit', payload: { patientId: session.patientId, source: 'wavve' } },
       });
-      await this.redis.publish('alerts:caregiver', JSON.stringify({
-        type: 'bed.exit', deviceId: session.deviceId, patientId: session.patientId,
-        timestamp: new Date(timestamp).toISOString(), source: 'wavve',
-      }));
+      if (session.patientId) {
+        await this.redis.publish('alerts:caregiver', JSON.stringify({
+          type: 'bed.exit', deviceId: session.deviceId, patientId: session.patientId,
+          timestamp: new Date(timestamp).toISOString(), source: 'wavve',
+        }));
+      }
       return;
     }
 
@@ -118,6 +122,7 @@ export class AeroSenseEventService {
     }
 
     const coordinates = event.kind === 'bed.movement' ? { energy: event.energy } : { turnOver: true };
+    if (!session.patientId) return;
     const eventType = event.kind === 'bed.movement' ? 'wavve.body_movement' : 'wavve.turn_over';
     await this.prisma.$executeRaw`
       INSERT INTO motion_events (time, device_id, patient_id, event_type, doppler_magnitude, coordinates)
@@ -137,6 +142,7 @@ export class AeroSenseEventService {
     position: { xM: number; yM: number },
     timestamp: number,
   ): Promise<void> {
+    if (!session.patientId) return;
     let alert = await this.prisma.alertEvent.findFirst({
       where: {
         deviceId: session.deviceId,
@@ -189,6 +195,7 @@ export class AeroSenseEventService {
   }
 
   async handleAssureFallElimination(session: AeroSenseSession): Promise<void> {
+    if (!session.patientId) return;
     const pendingAlert = await this.prisma.alertEvent.findFirst({
       where: {
         deviceId: session.deviceId,
@@ -228,6 +235,7 @@ export class AeroSenseEventService {
     presence: { occupied: boolean; rangeM: number; energy: number },
     timestamp: number,
   ): Promise<void> {
+    if (!session.patientId) return;
     const payload = {
       deviceId: session.deviceId,
       patientId: session.patientId,
@@ -265,6 +273,7 @@ export class AeroSenseEventService {
     },
     timestamp: number,
   ): Promise<void> {
+    if (!session.patientId) return;
     await this.prisma.$executeRaw`
       INSERT INTO motion_events (time, device_id, patient_id, event_type, coordinates)
       VALUES (

@@ -140,9 +140,11 @@ export class AeroSenseSessionService {
       { event: 'device_offline', deviceId: session.deviceId, patientId: session.patientId, source: 'aerosense_tcp' },
       'AeroSense device offline',
     );
-    await this.redis.publish('alerts:caregiver', JSON.stringify({
-      type: 'system.device_offline', deviceId: session.deviceId, patientId: session.patientId,
-      lastSeen: new Date().toISOString(), source: 'aerosense_tcp',
-    }));
+    if (session.patientId) {
+      await this.redis.publish('alerts:caregiver', JSON.stringify({
+        type: 'system.device_offline', deviceId: session.deviceId, patientId: session.patientId,
+        lastSeen: new Date().toISOString(), source: 'aerosense_tcp',
+      }));
+    }
   }
 }

@@ -41,15 +41,17 @@ export class DeviceHealthService {
         },
       });
 
-      await this.redis.publish(
-        'alerts:caregiver',
-        JSON.stringify({
-          type: 'system.device_offline',
-          deviceId: device.id,
-          patientId: device.userId,
-          lastSeen: device.lastHeartbeat?.toISOString() ?? null,
-        }),
-      );
+      if (device.userId) {
+        await this.redis.publish(
+          'alerts:caregiver',
+          JSON.stringify({
+            type: 'system.device_offline',
+            deviceId: device.id,
+            patientId: device.userId,
+            lastSeen: device.lastHeartbeat?.toISOString() ?? null,
+          }),
+        );
+      }
 
       this.logger.warn({ deviceId: device.id, patientId: device.userId }, 'Device marked offline');
     }
@@ -67,7 +69,7 @@ export class DeviceHealthService {
       });
 
       const hourAgo = Date.now() - 60 * 60 * 1000;
-      if (!lastPush || lastPush.createdAt.getTime() < hourAgo) {
+      if (device.userId && (!lastPush || lastPush.createdAt.getTime() < hourAgo)) {
         await this.redis.publish(
           'alerts:caregiver',
           JSON.stringify({ type: 'device.offline_15min', deviceId: device.id, patientId: device.userId }),

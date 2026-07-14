@@ -73,6 +73,10 @@ export class MqttConsumerService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(`Unknown device UUID: ${payload.device_id}`);
       return;
     }
+    if (!device.userId) {
+      this.logger.debug(`Unassigned MQTT device ${payload.device_id} — skipping clinical DSP processing`);
+      return;
+    }
 
     const end = this.metrics.dspProcessDuration.startTimer();
     try {

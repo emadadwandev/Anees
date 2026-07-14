@@ -29,7 +29,10 @@ export class DevicesService {
     const cached = await this.redis.get(cacheKey);
     if (cached) return JSON.parse(cached);
 
-    const device = await this.prisma.device.findUnique({ where: { id: deviceId } });
+    const device = await this.prisma.device.findUnique({
+      where: { id: deviceId },
+    });
+    if (device?.deprovisionedAt) return null;
     if (device) {
       await this.redis.set(cacheKey, JSON.stringify(device), 'EX', DEVICE_CACHE_TTL);
     }
@@ -43,6 +46,7 @@ export class DevicesService {
     if (cached) return JSON.parse(cached);
 
     const device = await this.prisma.device.findUnique({ where: { serial } });
+    if (device?.deprovisionedAt) return null;
     if (device) {
       await this.redis.set(cacheKey, JSON.stringify(device), 'EX', DEVICE_CACHE_TTL);
     }
@@ -62,8 +66,10 @@ export class DevicesService {
       }
     }
 
-    const device = await this.prisma.device.findUnique({ where: { externalId: normalized } });
-    if (!device || device.transport !== 'aerosense_tcp') return null;
+    const device = await this.prisma.device.findUnique({
+      where: { externalId: normalized },
+    });
+    if (!device || device.transport !== 'aerosense_tcp' || device.deprovisionedAt) return null;
 
     await this.redis.set(cacheKey, JSON.stringify(device), 'EX', DEVICE_CACHE_TTL);
     return device;

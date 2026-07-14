@@ -124,7 +124,7 @@ export class HardwareDeviceService implements OnModuleInit, OnModuleDestroy {
       },
     });
 
-    if (!isOnline) {
+    if (!isOnline && device.userId) {
       await this.redis.publish('alerts:caregiver', JSON.stringify({
         type: 'system.device_offline',
         deviceId: device.id,
@@ -145,7 +145,7 @@ export class HardwareDeviceService implements OnModuleInit, OnModuleDestroy {
         where: { id: device.id },
         data: { lastHeartbeat: new Date(), status: DeviceStatus.online },
       });
-    } else {
+    } else if (device.userId) {
       await this.redis.publish('alerts:caregiver', JSON.stringify({
         type: 'system.heartbeat_warning',
         deviceId: device.id,
@@ -168,6 +168,7 @@ export class HardwareDeviceService implements OnModuleInit, OnModuleDestroy {
 
   private async handleFallStatus(device: any, params: Record<string, string>) {
     if (!('fallStatus' in params)) return;
+    if (!device.userId) return;
     if (params.fallStatus === '1') {
       await this.onFallDetected(device);
     } else {
@@ -272,6 +273,7 @@ export class HardwareDeviceService implements OnModuleInit, OnModuleDestroy {
 
   private async handleDwellStatus(device: any, params: Record<string, string>) {
     if (params.residentStatus !== '1') return;
+    if (!device.userId) return;
 
     const { id: deviceId, userId: patientId, roomLabel } = device;
     const debounceKey = `dwell:debounce:${patientId}`;
@@ -301,6 +303,7 @@ export class HardwareDeviceService implements OnModuleInit, OnModuleDestroy {
     if ('someoneExists' in params) update.someoneExists = params.someoneExists === '1';
     if ('motionStatus' in params) update.motionStatus = Number(params.motionStatus); // 0=none,1=static,2=active
     if (Object.keys(update).length === 0) return;
+    if (!device.userId) return;
 
     await this.redis.publish('vitals:presence', JSON.stringify({
       deviceId: device.id,
@@ -320,6 +323,7 @@ export class HardwareDeviceService implements OnModuleInit, OnModuleDestroy {
 
   private async handleFallSensorMotion(device: any, params: Record<string, string>) {
     if (!('movementSigns' in params) && !('humanPresenceEnergyValue' in params)) return;
+    if (!device.userId) return;
     const motionLevel = Number(params.movementSigns ?? params.humanPresenceEnergyValue ?? 0);
     await this.redis.set(
       `motion:${device.userId}`,
@@ -334,6 +338,7 @@ export class HardwareDeviceService implements OnModuleInit, OnModuleDestroy {
     const hasHr = 'heartRate' in params;
     const hasRr = 'breathRate' in params;
     if (!hasHr || !hasRr) return; // need both to publish a valid vital reading
+    if (!device.userId) return;
 
     const hr = Number(params.heartRate);
     const rr = Number(params.breathRate);
@@ -364,6 +369,7 @@ export class HardwareDeviceService implements OnModuleInit, OnModuleDestroy {
   // ─── Sleep stages & full sleep report (ST-BD60S1-WT) ────────────────────────
 
   private async handleSleepReport(device: any, params: Record<string, string>) {
+    if (!device.userId) return;
     // Per-epoch stage update during sleep
     if ('sleepState' in params) {
       const stageMap: Record<string, string> = { '0': 'deep', '1': 'light', '2': 'rem', '3': 'awake' };

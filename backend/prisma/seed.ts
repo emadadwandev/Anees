@@ -57,6 +57,22 @@ async function main() {
     },
   });
 
+  // ─── Super Admin — Development Operations Console ────────────────────────
+  // Local development credential only; replace/disable outside development.
+  const superAdmin = await prisma.user.upsert({
+    where: { email: 'super_admin@anees.dev' },
+    update: { role: Role.super_admin },
+    create: {
+      email: 'super_admin@anees.dev',
+      passwordHash: await bcrypt.hash('superadmin123', 10),
+      role: Role.super_admin,
+      firstName: 'System',
+      lastName: 'Operator',
+      phone: '+966500000000',
+      language: 'en',
+    },
+  });
+
   // ─── Extra: Second elderly patient for roster variety ─────────────────────
   const elderly2 = await prisma.user.upsert({
     where: { email: 'elderly.fatima@anees.dev' },
@@ -208,6 +224,7 @@ async function main() {
   console.log(`  Family caregiver  family.caregiver@anees.dev     caregiver123`);
   console.log(`  Nurse caregiver   nurse.sara@anees.dev           caregiver123`);
   console.log(`  Dashboard admin   dashboard@anees.dev            dashboard123`);
+  console.log(`  Super admin       ${superAdmin.email}          superadmin123 (dev only)`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('');
   console.log(`  Device 1: ${device1.serial}  →  ${device1.roomLabel}`);

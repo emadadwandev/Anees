@@ -2,10 +2,11 @@ import { Module } from '@nestjs/common';
 import { DevicesService } from './devices.service';
 import { DevicesController } from './devices.controller';
 import { DeviceHealthService } from './device-health.service';
+import { DeviceLifecycleService } from './device-lifecycle.service';
 
 @Module({
-  providers: [DevicesService, DeviceHealthService],
+  providers: [DevicesService, DeviceHealthService, DeviceLifecycleService],
   controllers: [DevicesController],
-  exports: [DevicesService],
+  exports: [DevicesService, DeviceLifecycleService],
 })
 export class DevicesModule {}
