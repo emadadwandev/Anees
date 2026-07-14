@@ -36,6 +36,7 @@ input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(107, 227, 
 button { margin-top: 12px; padding: 13px 16px; border: 0; border-radius: 10px; color: #062019; background: var(--accent); font-weight: 750; cursor: pointer; }
 button:disabled { opacity: .6; cursor: wait; }
 .form-error { margin: 8px 0 0; padding: 10px 12px; color: #ffb7b7; border: 1px solid rgba(255, 120, 120, .3); border-radius: 9px; background: rgba(120, 20, 30, .2); font-size: 13px; }
+.form-success { margin: 8px 0 0; padding: 10px 12px; color: var(--accent); border: 1px solid rgba(107, 227, 192, .25); border-radius: 9px; background: rgba(107, 227, 192, .08); font-size: 13px; }
 .console-placeholder { text-align: center; }
 
 .console-shell { min-height: 100vh; display: grid; grid-template-columns: 245px 1fr; }
