@@ -39,6 +39,21 @@ export interface AuditEntry {
   timestamp: string;
 }
 
+export function normalizeAuditEntry(input: Record<string, unknown>): AuditEntry {
+  const details = input.details;
+  return {
+    id: String(input.id ?? ''),
+    actorId: String(input.actorId ?? ''),
+    action: String(input.action ?? ''),
+    resourceType: String(input.resourceType ?? ''),
+    resourceId: typeof input.resourceId === 'string' ? input.resourceId : null,
+    details: details && typeof details === 'object' && !Array.isArray(details)
+      ? details as Record<string, unknown>
+      : {},
+    timestamp: String(input.timestamp ?? ''),
+  };
+}
+
 type Fetcher = typeof fetch;
 
 /** Keep admin UI data intentionally narrow: no credentials, payloads, or capabilities. */
@@ -112,7 +127,8 @@ export function createAdminApi(token: string, fetcher: Fetcher = fetch) {
     },
     async getAudit(params: Record<string, string> = {}) {
       const query = new URLSearchParams(params).toString();
-      return readJson<AuditEntry[]>(await request(`/audit${query ? `?${query}` : ''}`));
+      const rows = await readJson<unknown[]>(await request(`/audit${query ? `?${query}` : ''}`));
+      return rows.map((row) => normalizeAuditEntry(row as Record<string, unknown>));
     },
     async transitionDevice(id: string, state: DeviceManagementState, reason: string) {
       return normalizeDevice(await readJson<Record<string, unknown>>(await request(`/devices/${encodeURIComponent(id)}/state`, {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createAdminApi, normalizeDevice } from './api';
+import { createAdminApi, normalizeAuditEntry, normalizeDevice } from './api';
 
 describe('admin API contract', () => {
   it('normalizes device responses without secrets or raw payloads', () => {
@@ -48,5 +48,9 @@ describe('admin API contract', () => {
         headers: expect.objectContaining({ Authorization: 'Bearer admin-token' }),
       }),
     );
+  });
+
+  it('normalizes legacy audit rows with null details', () => {
+    expect(normalizeAuditEntry({ id: 'audit-1', actorId: 'actor-1', action: 'auth.login_failed', resourceType: 'auth', resourceId: null, details: null, timestamp: '2026-07-14T00:00:00.000Z' }).details).toEqual({});
   });
 });
