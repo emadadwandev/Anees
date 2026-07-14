@@ -157,7 +157,7 @@ export function createAdminApi(token: string, fetcher: Fetcher = fetch) {
 export async function getAdminApi() {
   const { auth } = await import('@/auth');
   const session = await auth();
-  if (!session?.accessToken || session.user.role !== 'super_admin') {
+  if (!session?.accessToken || session.error === 'RefreshAccessTokenError' || session.user.role !== 'super_admin') {
     throw new Error('Super-admin session required');
   }
   return createAdminApi(session.accessToken);

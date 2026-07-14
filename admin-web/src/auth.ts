@@ -1,6 +1,7 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import type { DefaultSession } from 'next-auth';
+import { getJwtExpiryMs, isAccessTokenExpired, refreshAccessToken } from './auth-token';
 
 const apiUrl = () => process.env.INTERNAL_API_URL ?? 'http://localhost:3000';
 
@@ -43,6 +44,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             role: data.user.role,
             accessToken: data.accessToken,
             refreshToken: data.refreshToken,
+            accessTokenExpiresAt: getJwtExpiryMs(data.accessToken),
           };
         } catch {
           return null;
@@ -56,12 +58,27 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.role = (user as { role?: string }).role;
         token.accessToken = (user as { accessToken?: string }).accessToken;
         token.refreshToken = (user as { refreshToken?: string }).refreshToken;
+        token.accessTokenExpiresAt = (user as { accessTokenExpiresAt?: number | null }).accessTokenExpiresAt;
+      }
+      const accessToken = token.accessToken as string | undefined;
+      const refreshToken = token.refreshToken as string | undefined;
+      const userId = token.sub;
+      if (!accessToken || !refreshToken || !userId || !isAccessTokenExpired(accessToken)) return token;
+      try {
+        const refreshed = await refreshAccessToken({ userId, accessToken, refreshToken }, fetch, apiUrl());
+        token.accessToken = refreshed.accessToken;
+        token.refreshToken = refreshed.refreshToken;
+        token.accessTokenExpiresAt = refreshed.accessTokenExpiresAt;
+        delete token.error;
+      } catch {
+        token.error = 'RefreshAccessTokenError';
       }
       return token;
     },
     async session({ session, token }) {
       session.accessToken = token.accessToken as string;
       session.user.role = token.role as string;
+      session.error = token.error as string | undefined;
       return session;
     },
   },
@@ -70,6 +87,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 declare module 'next-auth' {
   interface Session {
     accessToken: string;
+    error?: string;
     user: { role: string } & DefaultSession['user'];
   }
 }
