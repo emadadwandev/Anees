@@ -92,6 +92,21 @@ export function createAdminApi(token: string, fetcher: Fetcher = fetch) {
     async getSummary() {
       return readJson<FleetSummary>(await request('/devices/summary'));
     },
+    async createDevice(input: {
+      serial: string;
+      firmwareVersion: string;
+      roomLabel: string;
+      deviceType: 'fall_sensor' | 'sleep_sensor';
+      transport: DeviceTransport;
+      vendor?: string;
+      externalId?: string;
+    }) {
+      return normalizeDevice(await readJson<Record<string, unknown>>(await request('/devices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      })));
+    },
     async getHealth() {
       return readJson<SystemHealth>(await request('/system/health'));
     },
@@ -112,6 +127,13 @@ export function createAdminApi(token: string, fetcher: Fetcher = fetch) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason }),
       })));
+    },
+    async executeCommand(id: string, command: string, values: Record<string, unknown>) {
+      return readJson<{ ok?: boolean; value?: unknown }>(await request(`/devices/${encodeURIComponent(id)}/aerosense/commands`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command, values }),
+      }));
     },
   };
 }
