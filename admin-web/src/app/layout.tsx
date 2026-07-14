@@ -8,8 +8,9 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // Browser recorders/extensions may add attributes to <html> before hydration.
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body><SessionProvider>{children}</SessionProvider></body>
     </html>
   );
